@@ -97,7 +97,7 @@
   -ms-text-overflow: ellipsis;
   text-align: justify;
   overflow: hidden;
-  width: 100px;
+  width: 150px;
   padding: 5px 0px 0px 0px;
 }
 
@@ -128,11 +128,17 @@ screen and (-ms-high-contrast: none) {
 
 .jimu-rtl .jimu-widget-threatAnalysis-setting .SettingsButtonIcon {
   margin-top: 9px;
+  margin-left: 2px;
 }
 
 .jimu-widget-threatAnalysis-setting .LabelSettingsDownButton {
   background: url("./images/arrow-down_black.png") no-repeat;
   margin-top: 15px;
+}
+
+.jimu-rtl .jimu-widget-threatAnalysis-setting .LabelSettingsDownButton {
+  margin: 15px 0 0 5px;
+  width: 13px;
 }
 
 .jimu-widget-threatAnalysis-setting .LabelSettingsDownButton:hover {

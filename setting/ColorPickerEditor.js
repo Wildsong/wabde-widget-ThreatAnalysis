@@ -86,7 +86,7 @@ define([
           array.forEach(lineStyles, lang.hitch(this, function (style) {
             option = {
               value: style,
-              label: this.nls.lineStyles[style]
+              label: '<span title="' + this.nls.lineStyles[style] + '">' + this.nls.lineStyles[style] +  '</span>'
             };
             options.push(option);
           }));
@@ -94,7 +94,7 @@ define([
           array.forEach(fillStyles, lang.hitch(this, function (style) {
             option = {
               value: style,
-              label: this.nls.fillStyles[style]
+              label: '<span title="' + this.nls.fillStyles[style] + '">' + this.nls.fillStyles[style] +  '</span>'
             };
             options.push(option);
           }));

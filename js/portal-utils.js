@@ -366,9 +366,7 @@ define([
           "description": "",
           "drawingTool": "esriFeatureEditToolPolygon",
           "prototype": {
-            "attributes": {
-              "type": ""
-            }
+            "attributes": {}
           }
         }],
         "supportedQueryFormats": "JSON",

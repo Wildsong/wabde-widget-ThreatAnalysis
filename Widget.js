@@ -1273,7 +1273,7 @@ define([
           var convertedLength = (unitType.toLowerCase() === "feet") ? selectedThreat.mandatoryDistance :
             this._convertToMeters(selectedThreat.mandatoryDistance, false);
           // draw the mandatory evacuation zone
-          var mandatoryGraphic = new Graphic(GeometryEngine.buffer(threatLocation,
+          var mandatoryGraphic = new Graphic(GeometryEngine.geodesicBuffer(threatLocation,
             convertedLength, geodesicNum));
           if (threatCatagory === "chemicalThreatCatogory") {
             mandatoryGraphic.setAttributes({
@@ -1317,7 +1317,7 @@ define([
           //Create the safe evacuation zone geometry
           convertedLength = (unitType.toLowerCase() === "feet") ? selectedThreat.safeDistance :
             this._convertToMeters(selectedThreat.safeDistance, false);
-          var safeGeom = GeometryEngine.buffer(threatLocation, convertedLength, geodesicNum);
+          var safeGeom = GeometryEngine.geodesicBuffer(threatLocation, convertedLength, geodesicNum);
           //Cut the mandatory distance zone from the safe evacuation geometry to create a donut
           var geoms = GeometryEngine.difference(safeGeom, mandatoryGraphic.geometry);
 
@@ -1516,6 +1516,22 @@ define([
       },
 
       /**
+       * Check if feature layer has the supported capabilities
+       * @param {*} capabilities
+       * @returns
+       */
+      _containsSupportedCapabilities: function (capabilities) {
+        var supported = ["create", "delete", "query", "update", "editing"];
+        var isSupported = true;
+        supported.forEach(function(supCap) {
+          if (capabilities.toLowerCase().split(",").indexOf(supCap) === -1) {
+            isSupported = false;
+          }
+        });
+        return isSupported;
+      },
+
+      /**
        * Populates the drop down list of operational layers
        * from the webmap
        */
@@ -1542,7 +1558,7 @@ define([
             }
           } else {
             if (layer.url) {
-              if (layer.type === "Feature Layer" && layer.capabilities.includes("Create,Delete,Query,Update,Editing")) {
+              if (layer.type === "Feature Layer" && this._containsSupportedCapabilities(layer.capabilities)) {
                 selectNode.addOption({
                   value: layer.name,
                   label: jimuUtils.sanitizeHTML(layer.name),
