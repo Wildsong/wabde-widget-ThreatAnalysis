@@ -21,20 +21,22 @@ define([
     'dojo/_base/kernel',
     'dojo/query',
     'dojo/number',
-    'dojo/dom-construct',
     'dijit/_WidgetsInTemplateMixin',
     'dijit/registry',
     'jimu/BaseWidgetSetting',
-    './symbologySettings',
     'jimu/LayerStructure',
     'jimu/utils',
     'dojo/on',
     'jimu/dijit/TabContainer3',
     'dojo/text!../models/ThreatTypes.json',
+    'dojo/text!../models/LpgThreatTypes.json',
     'jimu/dijit/SimpleTable',
     './newThreatType',
     'dojo/dom-style',
-    'dojo/dom-class'
+    '../utils',
+    'dojo/dom-attr',
+    'jimu/dijit/Message',
+    'dijit/form/Select'
 
   ],
   function (
@@ -44,20 +46,22 @@ define([
     kernel,
     query,
     dojoNumber,
-    domConstruct,
     _WidgetsInTemplateMixin,
     registry,
     BaseWidgetSetting,
-    symbologySettings,
     LayerStructure,
     jimuUtils,
     on,
     TabContainer3,
     threats,
+    lpgThreats,
     Table,
     ThreatType,
     domStyle,
-    domClass
+    utilsHelper,
+    domAttr,
+    Message
+
   ) {
     return declare([BaseWidgetSetting, _WidgetsInTemplateMixin], {
       baseClass: 'jimu-widget-threatAnalysis-setting',
@@ -79,8 +83,12 @@ define([
             });
           };
         }
-
         this.inherited(arguments);
+        //For backward if config has threatAnalysis key then transform config json to new config json
+        if (this.config.hasOwnProperty("threatAnalysis")) {
+          this.config = utilsHelper.transformOldConfigToNewConfigJson(this.config);
+        }
+
         if (window.isRTL && kernel.locale === "ar") {
           domStyle.set(this.helpBtn, "transform", "rotateY(180deg)");
         } else {
@@ -88,121 +96,93 @@ define([
         }
         //Retrieve threat types
         this._threatData = JSON.parse(threats);
+        this._lpgThreatData = JSON.parse(lpgThreats);
         this._handleClickEvents();
-        this._populateLayerSelect(this._getAllMapLayers(), this.opLayerList);
-        this._setSelectedOption(this.opLayerList, this.config.threatAnalysis.operationalLayer.name);
+        this._populateLayerSelect(this._getAllMapLayers(false), this.opLayerList, false);
+        this._populateLayerSelect(this._getAllMapLayers(true), this.defaultInputLayer, true);
       },
 
       startup: function () {
         this.inherited(arguments);
-        if (!this.config.threatAnalysis) {
-          this.config.threatAnalysis = {};
-        }
         this._initTabs();
         this._initThreatTypeTable();
-        this._initLPGThreatTypeTable();
-        //for backward
-        if (this.config.hasOwnProperty("lpgThreatTypes")) {
-          domClass.remove(this.lpgthreatTypesTableNode, "controlGroupHidden");
-        } else {
-          domClass.add(this.lpgthreatTypesTableNode, "controlGroupHidden");
-        }
-        this._createSettings();
-        if (this.config.threatAnalysis.operationalLayer.name === "") {
-          this.opLayerList.value = '';
-        }
-
-        if (this.config.threatAnalysis.unit !== "") {
-          this._setSelectedOption(this.unitType, this.config.threatAnalysis.unit);
-        } else {
-          this.unitType.value = '';
-        }
         this.setConfig(this.config);
       },
 
       setConfig: function (config) {
-        var threatData, unitType, lpgThreatData;
+        var threatData, unitType, threatInfos;
         this.config = config;
-        //Note: threatTypes key of old config which belongs to threats
-        //now In new config it belongs to chemical threats
-        //populate configured values in threat types table
-        if (this.config.hasOwnProperty("threatTypes")) {
-          threatData = this.config.threatTypes;
+        if (this.config.hasOwnProperty("generalSettings")) {
+          if (this.config.generalSettings.operationalLayer &&
+            this.config.generalSettings.operationalLayer.name !== "") {
+            this.opLayerList.set("value", this.config.generalSettings.operationalLayer.name);
+          } else {
+            this.opLayerList.set("value", "");
+          }
+          if (this.config.generalSettings.unit && this.config.generalSettings.unit !== "") {
+            this.unitType.set("value", this.config.generalSettings.unit, false);
+          } else {
+            this.unitType.set("value", "feet", false);
+          }
+          if (this.config.generalSettings.layerToSelectFeatures &&
+            this.config.generalSettings.layerToSelectFeatures !== "") {
+            this.defaultInputLayer.set("value", this.config.generalSettings.layerToSelectFeatures);
+          } else {
+            this.defaultInputLayer.set("value", "");
+          }
+          if (this.config.generalSettings.defaultInputType && this.config.generalSettings.defaultInputType !== "") {
+            this.defaultInputLocation.set("value", this.config.generalSettings.defaultInputType);
+          } else {
+            this.defaultInputLocation.set("value", "interactive");
+          }
+        }
+        //if config has threats then populate threat table with config threats
+        //else populate table with json files
+        if (this.config.hasOwnProperty("threats")) {
+          threatData = this.config.threats;
         } else {
           //populate default values in threat types table
-          threatData = this._threatData;
+          threatData = utilsHelper.getDefaultThreats(this._threatData, this._lpgThreatData);
         }
 
-        this._ThreatTypeTable.clear();
+        this._threatTypeTable.clear();
         for (var i = 0; i < threatData.length; i++) {
-          var threatInfos = threatData[i];
-          this._populateThreatTableRow(threatInfos, this._ThreatTypeTable, "mandatoryDistance", true);
-          if (!unitType) {
-            unitType = threatInfos.Unit;
-          }
+          threatInfos = threatData[i];
+          this._populateThreatTableRow(threatInfos);
         }
-
-        //populate configured values in LPG threat types table
-        if (this.config.hasOwnProperty("lpgThreatTypes")) {
-          lpgThreatData = this.config.lpgThreatTypes;
-          this._lpgThreatTypeTable.clear();
-          if (lpgThreatData.length > 0) {
-            for (var j = 0; j < lpgThreatData.length; j++) {
-              var lpgThreatInfos = lpgThreatData[j];
-              this._populateThreatTableRow(lpgThreatInfos, this._lpgThreatTypeTable, "fireBallDiameter", false);
-              if (!unitType) {
-                unitType = lpgThreatInfos.Unit;
-              }
-            }
-          }
-        } else {
-          lpgThreatData = [];
+        if (!unitType) {
+          unitType = this.unitType.value;
         }
-
         this.unitMeasureLabel.innerHTML = this.nls.unitMeasureLabel.format(unitType &&
           unitType.toLowerCase() === "meters" ? this.nls.meters : this.nls.feet);
+        this.defaultThreatType.set("options", this._getDefaultThreatOptions(true));
+        if (this.config.generalSettings.defaultThreatType && this.config.generalSettings.defaultThreatType !== "") {
+          this.defaultThreatType.set("value", this.config.generalSettings.defaultThreatType);
+        } else {
+          this.defaultThreatType.set("value", "");
+        }
       },
 
       getConfig: function () {
-        if (!this._SettingsInstance.validInputs()) {
+        //if any threat has duplicate zone names then show message to user
+        if (this._getThreatNamesWithDuplicateZonesName().length > 0) {
+          new Message({
+            message: "" + this.nls.uniqueZoneRequiredMsg + " " +
+              this._getThreatNamesWithDuplicateZonesName().join(", ")
+          });
           return false;
         }
-        this._SettingsInstance.onSettingsChanged();
-        for (var key in this._currentSettings) {
-          this.config.threatAnalysis.symbology[key] = this._currentSettings[key];
-        }
-        this.config.threatAnalysis.operationalLayer.name = this.opLayerList.value;
-        this.config.threatAnalysis.unit = this.unitType.value;
-        //Note: threatTypes key of old config which belongs to threats
-        //now In new config it belongs to chemical threats
-        this.config.threatTypes = this._getConfiguredThreats(this._ThreatTypeTable, "Bldg_Dist", "Outdoor_Dist", true);
-        this.config.lpgThreatTypes = this._getConfiguredThreats(this._lpgThreatTypeTable,
-          "Fireball_Dia", "Safe_Dist", false);
+        this.config.generalSettings.operationalLayer.name = this.opLayerList.value;
+        this.config.generalSettings.unit = this.unitType.value;
+        this.config.threats = this._getConfiguredThreats();
+        this.config.generalSettings.defaultInputType = this.defaultInputLocation.value;
+        this.config.generalSettings.layerToSelectFeatures = this.defaultInputLayer.value;
+        this.config.generalSettings.defaultThreatType = this.defaultThreatType.value;
         return this.config;
       },
 
       destroy: function () {
         this.inherited(arguments);
-      },
-
-      /**
-       * Creates settings
-       **/
-      _createSettings: function () {
-        //Create Settings Instance
-        this._SettingsInstance = new symbologySettings({
-          nls: this.nls,
-          config: this.config,
-          appConfig: this.appConfig
-        }, domConstruct.create("div", {}, this.SettingsNode));
-
-        //add a listener for a change in settings
-        this.own(this._SettingsInstance.on("settingsChanged",
-          lang.hitch(this, function (updatedSettings) {
-            this._currentSettings = updatedSettings;
-          })
-        ));
-        this._SettingsInstance.startup();
       },
 
       _checkValidValues: function () {
@@ -222,7 +202,7 @@ define([
       /**
        * This gets all the operational layers and places it in a custom data object.
        */
-      _getAllMapLayers: function () {
+      _getAllMapLayers: function (allLayers) {
         var layerList = [];
         var layerStructure = LayerStructure.getInstance();
         //get all layers.
@@ -230,7 +210,7 @@ define([
           //check to see if type exist and if it's not any tiles
           if (typeof (layerNode._layerInfo.layerObject.type) !== 'undefined') {
             if ((layerNode._layerInfo.layerObject.type).indexOf("tile") === -1) {
-              if (layerNode._layerInfo.layerObject.geometryType === "esriGeometryPolygon") {
+              if (layerNode._layerInfo.layerObject.geometryType === "esriGeometryPolygon" || allLayers) {
                 layerList.push(layerNode._layerInfo.layerObject);
               }
             }
@@ -243,24 +223,34 @@ define([
        * Populates the drop down list of operational layers
        * from the webmap
        */
-      _populateLayerSelect: function (layerList, selectNode) {
+      _populateLayerSelect: function (layerList, selectNode, doNotCheckCapabilities) {
         //Add a blank option
-        var blankOpt = document.createElement('option');
-        blankOpt.value = "";
-        blankOpt.innerHTML = "";
-        blankOpt.selected = true;
-        selectNode.appendChild(blankOpt);
+        var options = [{
+          value: "",
+          label: this.nls.selectLabel,
+          selected: true
+        }];
         array.forEach(layerList, lang.hitch(this, function (layer) {
-          if (layer.url) {
-            if (layer.type === "Feature Layer" && this._containsSupportedCapabilities(layer.capabilities)) {
-              var opt = document.createElement('option');
-              opt.value = layer.name;
-              opt.innerHTML = jimuUtils.sanitizeHTML(layer.name);
-              opt.selected = false;
-              selectNode.appendChild(opt);
+          if (!doNotCheckCapabilities) {
+            if (layer.url) {
+              if (layer.type === "Feature Layer" && this._containsSupportedCapabilities(layer.capabilities)) {
+                options.push({
+                  value: layer.name,
+                  label: jimuUtils.sanitizeHTML(layer.name)
+                });
+              }
+            }
+          } else {
+            if (layer.type === "Feature Layer") {
+              options.push({
+                value: layer.name,
+                label: jimuUtils.sanitizeHTML(layer.name),
+                selected: false
+              });
             }
           }
         }));
+        selectNode.set("options", options);
       },
 
       /**
@@ -309,20 +299,6 @@ define([
         };
 
         return getThreatTypeLabel(threatTypeName);
-      },
-
-      /**
-       * Sets the selected option
-       * in the drop-down list
-       * @param {string} layerName
-       */
-      _setSelectedOption: function (selectNode, layerName) {
-        for (var i = 0; i < selectNode.options.length; i++) {
-          if (selectNode.options[i].value === layerName) {
-            selectNode.selectedIndex = i;
-            break;
-          }
-        }
       },
 
       //Source: https://stackoverflow.com/questions/36962903/javascript-shake-html-element
@@ -388,20 +364,16 @@ define([
       },
 
       _initTabs: function () {
-        var threatTypeTab, symbologyTab, MiscTab, tabs;
+        var threatTypeTab, MiscTab, tabs;
         threatTypeTab = {
           title: this.nls.threatTypeLabel,
           content: this.threatTypeTab
-        };
-        symbologyTab = {
-          title: this.nls.symbologyLabel,
-          content: this.symbologyTab
         };
         MiscTab = {
           title: this.nls.generalLabel,
           content: this.MiscTab
         };
-        tabs = [threatTypeTab, symbologyTab, MiscTab];
+        tabs = [threatTypeTab, MiscTab];
         this.tab = new TabContainer3({
           "tabs": tabs,
           "class": "esriCTFullHeight"
@@ -415,35 +387,32 @@ define([
 
       _initThreatTypeTable: function () {
         var args = this._getTableFields(true);
-        this._ThreatTypeTable = new Table(args);
-        this._ThreatTypeTable.placeAt(this.threatTypesTableNode);
-        this._ThreatTypeTable.startup();
-        this.own(on(this._ThreatTypeTable,
+        this._threatTypeTable = new Table(args);
+        this._threatTypeTable.placeAt(this.threatTypesTableNode);
+        this._threatTypeTable.startup();
+        this.own(on(this._threatTypeTable,
           'actions-edit',
           lang.hitch(this, this._onEditThreatInfoClick)));
+        this.own(on(this._threatTypeTable,
+          'row-delete',
+          lang.hitch(this, this._onDeleteThreatInfoClick)));
       },
 
       /**
-       * This function is used to
+       * This function is used to get threat table fields
        */
-      _getTableFields: function (isChemicalThreatsTable) {
+      _getTableFields: function () {
         var fields = [{
             name: 'threatType',
-            title: isChemicalThreatsTable ? this.nls.threatTypeColLabel : this.nls.lpgthreatTypeColLabel,
+            title: this.nls.threatTypeLabel,
             type: 'text',
             width: "30%"
           },
           {
-            name: isChemicalThreatsTable ? 'mandatoryDistance' : "fireBallDiameter",
-            title: isChemicalThreatsTable ? this.nls.mandatoryDistance : this.nls.fireBallDiameterLable,
+            name: "threatDescription",
+            title: this.nls.threatDescriptionColLabel,
             type: 'text',
-            width: "30%"
-          },
-          {
-            name: 'safeDistance',
-            title: isChemicalThreatsTable ? this.nls.safeDistance : this.nls.lpgSafeDistanceLable,
-            type: 'text',
-            width: "30%"
+            width: "60%"
           },
           {
             name: 'actions',
@@ -459,16 +428,6 @@ define([
           selectable: false
         };
         return args;
-      },
-
-      _initLPGThreatTypeTable: function () {
-        var args = this._getTableFields(false);
-        this._lpgThreatTypeTable = new Table(args);
-        this._lpgThreatTypeTable.placeAt(this.lpgthreatTypesTableNode);
-        this._lpgThreatTypeTable.startup();
-        this.own(on(this._lpgThreatTypeTable,
-          'actions-edit',
-          lang.hitch(this, this._onEditLPGThreatInfoClick)));
       },
 
       /**
@@ -487,29 +446,41 @@ define([
       /**
        * This function is used to create new threat popup
        */
-      _createNewThreatTypePopup: function (isAddThreat, table, tr, rowData, isChemicalThreat) {
+      _createNewThreatTypePopup: function (isAddThreat, tr, rowData) {
+        var setCurrentThreatAsDefault = false;
         this.newThreatTypeObj = new ThreatType({
-          table: table,
           currentRow: tr,
           currentRowData: rowData,
           isAddThreat: isAddThreat,
-          isChemicalThreat: isChemicalThreat,
           nls: this.nls,
           selectedUnitType: this.unitType.value,
-          existingChemicalThreatNames: this._getExistingThreatTypes(this._ThreatTypeTable),
-          existingLPGThreatNames: this._getExistingThreatTypes(this._lpgThreatTypeTable)
+          existingThreatNames: this._getExistingThreatTypes()
         });
         this.newThreatTypeObj.startup();
-        this.own(on(this.newThreatTypeObj, "addNewThreat", lang.hitch(this, function (newThreatInfo) {
-          if (newThreatInfo.threatInfoType === "chemicalThreatInfo") {
-            this._populateThreatTableRow(newThreatInfo, this._ThreatTypeTable, "mandatoryDistance", true);
+        this.own(on(this.newThreatTypeObj, "threatInfoUpdated", lang.hitch(this, function (threatInfo) {
+          if (!tr) {
+            this._populateThreatTableRow(threatInfo);
+            //update default threat type options in general settings
+            this.defaultThreatType.addOption({
+              label: this._getThreatTypeNls(threatInfo.threatName),
+              value: threatInfo.threatName
+            });
           } else {
-            this._populateThreatTableRow(newThreatInfo, this._lpgThreatTypeTable, "fireBallDiameter", false);
-            //In case of backward lpg table is hidden initially
-            //make it display on add new lpg threat
-            if (domClass.contains(this.lpgthreatTypesTableNode, 'controlGroupHidden')) {
-              domClass.remove(this.lpgthreatTypesTableNode, "controlGroupHidden");
+            //if value before edit is selected as default then set edited value as default
+            if (tr._configInfo.threatName === this.defaultThreatType.value) {
+              setCurrentThreatAsDefault = true;
             }
+            tr._configInfo = threatInfo;
+            this._threatTypeTable.editRow(tr, {
+              threatType: this._getThreatTypeNls(threatInfo.threatName),
+              threatDescription: this._getThreatDescription(threatInfo)
+            });
+            //update default threat type options in general settings
+            this.defaultThreatType.set("options", this._getDefaultThreatOptions(false));
+            if (setCurrentThreatAsDefault) {
+              this.defaultThreatType.set("value", threatInfo.threatName);
+            }
+            this._setNodeTitle(tr);
           }
         })));
       },
@@ -521,147 +492,229 @@ define([
       _convertValues: function (toMeters) {
         this.unitMeasureLabel.innerHTML = this.nls.unitMeasureLabel.format((toMeters) ? this.nls.meters :
           this.nls.feet);
-
-        this.onUnitChange(this._ThreatTypeTable, "mandatoryDistance", toMeters);
-        this.onUnitChange(this._lpgThreatTypeTable, "fireBallDiameter", toMeters);
+        this.onUnitChange(toMeters);
       },
 
       /**
-       * This function is used to update disatnce coloumns of table on unit change
+       * This function is used to update distance column's of table on unit change
        */
-      onUnitChange: function (table, prop, toMeters) {
-        var trs = table.getRows();
+      onUnitChange: function (toMeters) {
+        var trs = this._threatTypeTable.getRows();
         function convertValue(dist, isMeters) {
-          var retVal = (isMeters) ? dojoNumber.parse(dist) * 0.3048 : dojoNumber.parse(dist) * 3.28084;
-          return dojoNumber.format(retVal, {
-            places: 2
-          });
+          return (isMeters) ? (dist) * 0.3048 : (dist) * 3.28084;
         }
         //get selected items from table
         array.forEach(trs, lang.hitch(this, function (tr) {
-          var rowData = {};
-          if (tr.threatType) {
-            tr[prop] = rowData[prop] = convertValue(tr[prop], toMeters);
-            tr.safeDistance = rowData.safeDistance = convertValue(tr.safeDistance, toMeters);
-            tr.unit = this.unitType.value;
-            table.editRow(tr, rowData);
-          }
+          array.forEach(tr._configInfo.zones, lang.hitch(this, function (zone) {
+            zone.distance = convertValue(zone.distance, toMeters);
+          }));
+          this._threatTypeTable.editRow(tr, {
+            threatDescription: this._getThreatDescription(tr._configInfo)
+          });
+          this._setNodeTitle(tr);
         }));
       },
 
       /**
        * Populates selected rows in threatTypes table
        */
-      _populateThreatTableRow: function (threatInfos, table, prop1, isChemeicalThreat) {
+      _populateThreatTableRow: function (threatInfos) {
         var result, tr;
         var row = {};
-        row.threatType = this._getThreatTypeNls(threatInfos.Threat);
-        row[prop1] = isChemeicalThreat ? dojoNumber.format(threatInfos.Bldg_Dist, {
-            places: 2
-          }) :
-          dojoNumber.format(threatInfos.Fireball_Dia, {
-            places: 2
-          });
-        row.safeDistance = isChemeicalThreat ? dojoNumber.format(threatInfos.Outdoor_Dist, {
-            places: 2
-          }) :
-          dojoNumber.format(threatInfos.Safe_Dist, {
-            places: 2
-          });
-        row.unit = threatInfos.Unit;
-        result = table.addRow(row);
+        row.threatType = this._getThreatTypeNls(threatInfos.threatName);
+        row.threatDescription = this._getThreatDescription(threatInfos);
+        result = this._threatTypeTable.addRow(row);
         if (result.success && result.tr) {
           tr = result.tr;
-          tr.threatType = threatInfos.Threat;
-          tr[prop1] = isChemeicalThreat ? dojoNumber.format(threatInfos.Bldg_Dist, {
-              places: 2
-            }) :
-            dojoNumber.format(threatInfos.Fireball_Dia, {
-              places: 2
-            });
-          tr.safeDistance = isChemeicalThreat ? dojoNumber.format(threatInfos.Outdoor_Dist, {
-              places: 2
-            }) :
-            dojoNumber.format(threatInfos.Safe_Dist, {
-              places: 2
-            });
-          tr.unit = threatInfos.Unit;
-          //this._addThreatTypeTitle(tr, tr.threatType);
+          tr._configInfo = threatInfos;
+          this._setNodeTitle(tr);
         }
+      },
+
+      /**
+       * This function is used to get display string of zone and distance separated by pipe symbol
+       */
+      _getThreatDescription: function (threatInfos) {
+        var threatZoneDescription = "";
+        array.forEach(threatInfos.zones, lang.hitch(this, function (zone, index) {
+          threatZoneDescription = threatZoneDescription + this._getZoneNameNls(zone.name) + ": " +
+            dojoNumber.format(zone.distance, { places: 2 });
+          //don't add pipe after last zone
+          if ((threatInfos.zones.length) - 1 !== index) {
+            threatZoneDescription = threatZoneDescription + " | ";
+          }
+        }));
+        return threatZoneDescription;
+      },
+
+      /**
+       * Return NLS label representation of zone name
+       */
+      _getZoneNameNls: function (zoneName) {
+        var self = this;
+        var zoneLabels = {
+          "Mandatory Evacuation Distance": "mandatoryLabel",
+          "Safe Evacuation Distance": "safeLabel",
+          "Fireball Diameter": "fireBallDiameterLable",
+          "Safe Distance": "lpgSafeDistanceLable"
+        };
+
+        var getZoneLabel = function (zoneName) {
+          if (zoneLabels[zoneName] !== undefined) {
+            return self.nls[zoneLabels[zoneName]];
+          }
+          return zoneName;
+        };
+        return getZoneLabel(zoneName);
       },
 
       /**
        * This function get Configured Threats
        */
-      _getConfiguredThreats: function (table, prop1, prop2, isChemicalThreat) {
-        var selectedthreatTypeArr = [],
+      _getConfiguredThreats: function () {
+        var selectedThreatTypeArr = [],
           trs;
-        trs = table.getRows();
+        trs = this._threatTypeTable.getRows();
         //get selected items from table
         array.forEach(trs, lang.hitch(this, function (tr) {
           var threatItem = {};
-          if (tr.threatType) {
-            threatItem.Threat = tr.threatType;
-            threatItem[prop1] = isChemicalThreat ? dojoNumber.parse(tr.mandatoryDistance, {
-                places: 2
-              }) :
-              dojoNumber.parse(tr.fireBallDiameter, {
-                places: 2
-              });
-            threatItem[prop2] = dojoNumber.parse(tr.safeDistance, {
-              places: 2
-            });
-            threatItem.Unit = tr.unit;
-            selectedthreatTypeArr.push(threatItem);
+          if (tr._configInfo) {
+            threatItem = tr._configInfo;
+            selectedThreatTypeArr.push(threatItem);
           }
         }));
-        return selectedthreatTypeArr;
+        return selectedThreatTypeArr;
       },
 
       /**
-       * This function is to set threatType in the table row
+       * This function is handle edit icon click of row
        */
-      _addThreatTypeTitle: function (row, threatType) {
-        var td, normalTextDiv;
-        // Set threat type label
-        td = query('.simple-table-cell', row)[0];
-        if (td) {
-          normalTextDiv = query('div', td)[0];
-          normalTextDiv.innerHTML = threatType;
-          normalTextDiv.title = threatType;
-        }
-      },
-
       _onEditThreatInfoClick: function (tr) {
-        var rowData = this._ThreatTypeTable.getRowData(tr);
+        var rowData = this._threatTypeTable.getRowData(tr);
         if (rowData) {
-          this._createNewThreatTypePopup(false, this._ThreatTypeTable, tr, rowData, true);
+          this._createNewThreatTypePopup(false, tr, rowData);
         }
       },
 
       /**
        * This function is to get existing threat types
        */
-      _getExistingThreatTypes: function (table) {
+      _getExistingThreatTypes: function () {
         var rows, threatTypes = [];
-        if (table) {
-          rows = table.getRows();
-          if (rows && rows.length > 0) {
-            array.forEach(rows, function (row) {
-              if (row.threatType) {
-                var threatType = (kernel.locale.includes("en")) ? row.threatType : row.innerText.split("\n")[0];
-                threatTypes.push(threatType);
-              }
-            });
-          }
+        rows = this._threatTypeTable.getRows();
+        if (rows && rows.length > 0) {
+          array.forEach(rows, function (row) {
+            if (row._configInfo) {
+              var threatType = (kernel.locale.includes("en")) ? row._configInfo.threatName :
+                row.innerText.split("\n")[0];
+              threatTypes.push(threatType);
+            }
+          });
         }
         return threatTypes;
       },
 
-      _onEditLPGThreatInfoClick: function (tr) {
-        var rowData = this._lpgThreatTypeTable.getRowData(tr);
+      /**
+       * This function is to show next zones in new line into tooltip
+       */
+      _setNodeTitle: function (nd) {
+        var td = query('..normal-text-div', nd)[1];
+        var text = td.innerHTML.split(' | ').join('\n');
+        td.title = "";
+        //in some locale thousand separator or decimal is denoted by space so
+        //to show actual space instead of &nbsp; in tooltip
+        if (text.search("&nbsp;") !== -1) {
+          text = text.split('&nbsp;').join(" ");
+        }
+        if (text) {
+          domAttr.set(td, "title", text);
+        }
+      },
+
+      /**
+       * This function is used to get all threats and
+       * check any threats has threat has duplicate zone names and get threat names array
+       */
+      _getThreatNamesWithDuplicateZonesName: function () {
+        var threatWithDuplicateZonesName = [];
+        var isDuplicateZoneNamesFound = false;
+        var threats = this._getThreatsInfo();
+        array.forEach(threats, lang.hitch(this, function (threat) {
+          if (this._isDuplicateZoneNames(threat.zones)) {
+            isDuplicateZoneNamesFound = true;
+          }
+          if (isDuplicateZoneNamesFound) {
+            threatWithDuplicateZonesName.push(threat.threatName);
+            isDuplicateZoneNamesFound = false;
+          }
+        }));
+        return threatWithDuplicateZonesName;
+      },
+
+      /**
+       * This function is used to check wether the threat has duplicate zones or not
+       */
+      _isDuplicateZoneNames: function (zonesArr) {
+        if (zonesArr.length > 0) {
+          var zonesNameArr = zonesArr.map(function (zone) { return zone.name; });
+          var isDuplicate = zonesNameArr.some(function (zoneName, idx) {
+            return zonesNameArr.indexOf(zoneName) !== idx;
+          });
+          return isDuplicate;
+        }
+      },
+
+      /**
+       * This function is used to get default threat type select options
+       */
+      _getDefaultThreatOptions: function (setBlankSelected) {
+        var options = [{
+          value: "",
+          label: this.nls.selectLabel,
+          selected: setBlankSelected
+        }];
+        var option = {};
+        var configuredThreats = this._getThreatsInfo();
+        array.forEach(configuredThreats, lang.hitch(this, function (threat) {
+          option = {
+            label: this._getThreatTypeNls(threat.threatName),
+            value: threat.threatName
+          };
+          options.push(option);
+        }));
+        return options;
+      },
+
+      /**
+       * This function is used to current threat info
+       */
+      _getThreatsInfo: function () {
+        var selectedThreatTypeArr = [],
+          trs;
+        trs = this._threatTypeTable.getRows();
+        //get selected items from table
+        array.forEach(trs, lang.hitch(this, function (tr) {
+          if (tr._configInfo) {
+            selectedThreatTypeArr.push(tr._configInfo);
+          }
+        }));
+        return selectedThreatTypeArr;
+      },
+
+      /**
+       * This function is used to handle delete row action of threat table
+       */
+      _onDeleteThreatInfoClick: function (tr) {
+        var rowData = this._threatTypeTable.getRowData(tr);
         if (rowData) {
-          this._createNewThreatTypePopup(false, this._lpgThreatTypeTable, tr, rowData, false);
+          var editOption = this.defaultThreatType.getOptions(tr._configInfo.threatName);
+          if (editOption) {
+            this.defaultThreatType.removeOption(editOption);
+          }
+        }
+        //if deleted threat is selected default threat type dropdown then set its value to blank
+        if (tr._configInfo.threatName === this.defaultThreatType.value) {
+          this.defaultThreatType.set("value", "");
         }
       }
     });

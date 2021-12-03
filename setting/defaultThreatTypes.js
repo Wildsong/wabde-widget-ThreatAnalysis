@@ -7,14 +7,13 @@ define([
   'dojo/_base/lang',
   "jimu/dijit/Popup",
   'dojo/text!../models/ThreatTypes.json',
-  'dojo/dom-construct',
-  'dojo/_base/array',
-  "dojo/dom-attr",
-  'dojo/on',
-  "dojo/query",
-  'dojo/dom-class',
-  "dojo/Evented",
   'dojo/text!../models/LpgThreatTypes.json',
+  'dojo/_base/array',
+  "dojo/Evented",
+  "dijit/form/Select",
+  '../utils',
+  'dojo/on',
+  'dojo/dom-class',
   'dijit/form/ValidationTextBox',
   'jimu/dijit/formSelect'
 ], function (
@@ -26,14 +25,13 @@ define([
   lang,
   Popup,
   threats,
-  domConstruct,
+  lpgThreats,
   array,
-  domAttr,
-  on,
-  query,
-  domClass,
   Evented,
-  lpgThreats
+  Select,
+  utilsHelper,
+  on,
+  domClass
 ) {
   return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented], {
     templateString: template,
@@ -48,20 +46,61 @@ define([
       //Retrieve threat types
       this._threatData = JSON.parse(threats);
       this._lpgThreatData = JSON.parse(lpgThreats);
-      this._createPopUpContent();
-      this._createPopUp();
-      this._eventListners();
-      this.threatCatagorySelect.setValue(this.threatCatogary);
-      if (!this.isAddThreat) {
-        this.threatCatagorySelect.set("disabled", true);
-      } else {
-        this.threatCatagorySelect.set("disabled", false);
+      this.defaultThreats = utilsHelper.getDefaultThreats(this._threatData, this._lpgThreatData);
+      this.defaultThreatsDropdown = new Select({
+        style: "width: 99%",
+        "class": "esriCTDefaultThreatsDropdown",
+        options: this._getOptions()
+      });
+      this.defaultThreatsDropdown.placeAt(this.defaultThreatsDropdownNode);
+      if (this.defaultThreatsDropdown.dropDown) {
+        //Add base class to the parent node
+        domClass.add(this.defaultThreatsDropdown.dropDown.domNode, this.baseClass);
+        //Add custom class to the container node
+        domClass.add(this.defaultThreatsDropdown.dropDown.containerNode, "esriCTCustomOptions");
       }
+      this.own(on(this.defaultThreatsDropdown, "change", lang.hitch(this, function () {
+        //if default threat type is not blank then enable popup ok button
+        if (this.defaultThreatsDropdown.get("value") !== "") {
+          this.defaultThreatTypePopup.enableButton(0);
+        } else {
+          this.defaultThreatTypePopup.disableButton(0);
+        }
+      })));
+      this.defaultThreatsDropdown.startup();
+      this._createPopUp();
+    },
+    /**
+     * This function is used to get options of default Threats Dropdown
+     */
+    _getOptions: function () {
+      var options = [];
+      options.push({ label: "", value: "", disabled: true });
+      options.push({
+        label: "<b><i>" + this.nls.chemicalThreatLegendLabel + "<i></b>", value: "Chemical", disabled: true
+      });
+      array.forEach(this._threatData, lang.hitch(this, function (currentThreat) {
+        options.push({ label: this._getThreatTypeNls(currentThreat.Threat), value: currentThreat.Threat });
+      }));
+      options.push({ label: "<b><i>" + this.nls.lpgThreatLegendLabel + "<i></b>", value: "Lpg", disabled: true });
+      array.forEach(this._lpgThreatData, lang.hitch(this, function (currentLpgThreat) {
+        options.push({ label: this._getThreatTypeNls(currentLpgThreat.Threat), value: currentLpgThreat.Threat });
+      }));
+      return options;
     },
 
-    _createPopUpContent: function () {
-      this._createDefaultChemicalThreatContet();
-      this._createDefaultLPGThreatTypeContent();
+    /**
+     * This function is used to get selected threat zone info
+     */
+    _getSelectedThreatZoneInfo: function () {
+      var selectedThreatZoneInfo;
+      array.some(this.defaultThreats, function (threat) {
+        if (this.defaultThreatsDropdown.get("value") === threat.threatName) {
+          selectedThreatZoneInfo = threat.zones;
+          return true;
+        }
+      }, this);
+      return selectedThreatZoneInfo;
     },
 
     /**
@@ -71,7 +110,7 @@ define([
       this.defaultThreatTypePopup = new Popup({
         "titleLabel": this.nls.defaultThreatTypePopUpLabel,
         "width": 500,
-        "maxHeight": 250,
+        "maxHeight": 70,
         "autoHeight": true,
         "class": this.baseClass,
         "content": this,
@@ -79,9 +118,11 @@ define([
           label: this.nls.ok,
           id: "okButton",
           onClick: lang.hitch(this, function () {
-            var selectedThreat = query(".selectedThreat", this.defaultThreatTypePopup.domNode);
-            if (selectedThreat.length > 0) {
-              this.emit("selectedDefaultThreat", this._getSelectedThreatType(selectedThreat));
+            if (this.defaultThreatsDropdown.get("value") !== "") {
+              this.emit("selectedDefaultThreatInfo", {
+                threatName: this.defaultThreatsDropdown.getOptions(this.defaultThreatsDropdown.value).label,
+                zones: this._getSelectedThreatZoneInfo()
+              });
               this.defaultThreatTypePopup.close();
             }
           })
@@ -94,19 +135,8 @@ define([
           })
         }]
       });
-    },
-
-    /**
-     * This function is used to add selected class to selected threat container
-     */
-    _addSelectedThreatClass: function (selectedThreatNode) {
-      var defultThreatNodes = query(".esriCTDefaultThreats", this.defaultThreatTypePopup.domNode);
-      array.forEach(defultThreatNodes, lang.hitch(this, function (node) {
-        if (domClass.contains(node, "selectedThreat")) {
-          domClass.remove(node, "selectedThreat");
-        }
-      }));
-      domClass.add(selectedThreatNode, "selectedThreat");
+      //Disable the ok button as soon as the popup is shown
+      this.defaultThreatTypePopup.disableButton(0);
     },
 
     /**
@@ -136,92 +166,7 @@ define([
         }
         return threatName;
       };
-
       return getThreatTypeLabel(threatTypeName);
-    },
-
-    /**
-     * This function is used to get threat info of selected threat
-     */
-    _getSelectedThreatType: function (selectedThreatNode) {
-      var threatInfo;
-      if (this.threatCatagorySelect.get("value") === "chemicalThreatCatogory") {
-        threatInfo = {
-          "Threat": domAttr.get(selectedThreatNode[0], "threatType"),
-          "Bldg_Dist": domAttr.get(selectedThreatNode[0], "mandatoryDistance"),
-          "Outdoor_Dist": domAttr.get(selectedThreatNode[0], "safeDistance"),
-          "Unit": domAttr.get(selectedThreatNode[0], "unit"),
-          "displayedValue": domAttr.get(selectedThreatNode[0], "innerHTML"),
-          "threatInfoType": "chemicalThreatInfo"
-        };
-      } else {
-        threatInfo = {
-          "Threat": domAttr.get(selectedThreatNode[0], "threatType"),
-          "Fireball_Dia": domAttr.get(selectedThreatNode[0], "fireBallDiameter"),
-          "Safe_Dist": domAttr.get(selectedThreatNode[0], "safeDistance"),
-          "Unit": domAttr.get(selectedThreatNode[0], "unit"),
-          "displayedValue": domAttr.get(selectedThreatNode[0], "innerHTML"),
-          "threatInfoType": "lpgThreatInfo"
-        };
-      }
-      return threatInfo;
-    },
-
-    /**
-     * This function is used to create Default Chemical Threat Contet
-     */
-    _createDefaultChemicalThreatContet: function () {
-      array.forEach(this._threatData, lang.hitch(this, function (threatInfo) {
-        var threatTypesContainer = domConstruct.create('div', {
-          "class": "esriCTDefaultThreats",
-          "innerHTML": this._getThreatTypeNls(threatInfo.Threat)
-        }, this.defaultChemicalThreatTypeList);
-        domAttr.set(threatTypesContainer, {
-          threatType: threatInfo.Threat,
-          mandatoryDistance: threatInfo.Bldg_Dist,
-          safeDistance: threatInfo.Outdoor_Dist,
-          unit: threatInfo.Unit
-        });
-        this.own(on(threatTypesContainer, "click", lang.hitch(this, function (evt) {
-          this._addSelectedThreatClass(evt.currentTarget);
-        })));
-      }));
-    },
-
-    /**
-     * This function is used to create Default LPGThreat Type Content
-     */
-    _createDefaultLPGThreatTypeContent: function () {
-      array.forEach(this._lpgThreatData, lang.hitch(this, function (threatInfo) {
-        var threatTypesContainer = domConstruct.create('div', {
-          "class": "esriCTDefaultThreats",
-          "innerHTML": this._getThreatTypeNls(threatInfo.Threat)
-        }, this.defaultLPGThreatTypeList);
-        domAttr.set(threatTypesContainer, {
-          threatType: threatInfo.Threat,
-          fireBallDiameter: threatInfo.Fireball_Dia,
-          safeDistance: threatInfo.Safe_Dist,
-          unit: threatInfo.Unit
-        });
-        this.own(on(threatTypesContainer, "click", lang.hitch(this, function (evt) {
-          this._addSelectedThreatClass(evt.currentTarget);
-        })));
-      }));
-    },
-
-    /**
-     * This function is used to add event listeners
-     */
-    _eventListners: function () {
-      this.own(on(this.threatCatagorySelect, "change", lang.hitch(this, function (value) {
-        if (value === "chemicalThreatCatogory") {
-          domClass.remove(this.defaultChemicalThreatTypeList, "controlGroupHidden");
-          domClass.add(this.defaultLPGThreatTypeList, "controlGroupHidden");
-        } else {
-          domClass.remove(this.defaultLPGThreatTypeList, "controlGroupHidden");
-          domClass.add(this.defaultChemicalThreatTypeList, "controlGroupHidden");
-        }
-      })));
     }
   });
 });

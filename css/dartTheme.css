@@ -217,3 +217,12 @@
 .easy-autocomplete-container ul li.selected {
   background: none repeat scroll 0 0 rgba(0, 0, 0, 0.5);
 }
+
+.jimu-rtl .claro .dijitSlider .dijitSliderRightBumper {
+  margin-right: -2px;
+  margin-left: 4px
+}
+
+.jimu-widget-threatAnalysis .esriCTZonesTableMaxHeight .jimu-icon-edit:hover {
+  background-position: -63px -186px;
+}

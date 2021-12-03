@@ -5,11 +5,7 @@ define({
     "fill": "Fill (Color only applies when style set to solid)", // Shown as label for outline color picker
 
     "style": "Style", // Shown as Title for Style dropdown
-    "mandatoryLabel": "Mandatory Evacuation Distance", // Shown as Title for Spill Location Settings dropdown
-    "mandatoryButtonLabel": "Configure Mandatory Evacuation Distance Settings", // Shown as tooltip for Spill Location Settings dropdown
-
-    "safeLabel": "Safe Evacuation Distance", // Shown as Title for Initial Isolation Zone Settings dropdown
-    "safeButtonLabel": "Configure Safe Evacuation Distance Settings", // Shown as tooltip for Initial Isolation Zone Settings dropdown
+    
     "selectOpLayerLabel": "Select an operational layer for results", // Label for the operational layer drop-down list,
     "selectDefaultMeasurementLabel": "Select a default unit of measure", // Label for default unit of measure
     "helpIconTooltip": "The operational layer list is populated with layers from the current web map that are polygon geometry type.", // tooltip info for operational drop-down list
@@ -41,23 +37,19 @@ define({
     },
 
     "threatTypeLabel": "Threat Type",
-    "symbologyLabel": "Symbology",
     "generalLabel": "General",
-    "addThreatTypesLabel": "Add Threat Type",
-    "threatTypeColLabel": "Chemical Threat type",
+    "addThreatTypesLabel": "Add threat type",
     "actions": "Actions",
-    "newThreatTypePopupLabel": "New Threat Type",
-    "chooseDefaultThreatTypeIconLabel": "Choose from default",
-    "mandatoryDistance": "Mandatory Evacuation Distance",
-    "safeDistance": "Safe Evacuation Distance",
+    "newThreatTypePopupLabel": "New threat type",
     "units": "Units",
-    "chooseDefaultThreatLabel": "Select a default threat type",
+    "chooseDefaultThreatLabel": "Select default threat type",
     "defaultThreatTypePopUpLabel": "Default Threat Types",
     "editThreatLabel": "Edit Threat",
     "defaultThreatTypeIconTooltip": "Default Threat Type List",
     "uniqueThreatTypeMsg": "Enter unique threat type, threat type with this name already exist.",
-    "requiredThreatTypeMsg": "This field is required",
+    "requiredMsg": "This field is required",
     "unitMeasureLabel": "Distances are in {0}",
+    "chooseDefaultThreatTypeIconLabel": "Choose from default",
 
     //threat types - labels from the ThreatTypes.json
     "pipeBombLabel": "Pipe Bomb",
@@ -69,24 +61,41 @@ define({
     "containerWaterTruckLabel": "Container/Water Truck",
     "semiTrailerLabel": "Semi-Trailer",
 
-    //LPG threats
-    "lpgSafeDistanceLable": "Safe Distance",
-    "fireBallDiameterLable": "Fireball Diameter",
-    "lpgthreatTypeColLabel": "LPG Threat Type",
-    "threatTypeCatagoryLabel": "Threat Type Catagory",
     "chemicalThreatLegendLabel": "Chemical Threat",
     "lpgThreatLegendLabel": "LPG Threat",
-    "fireballButtonLabel": "Configure Fireball Diameter Settings",
-    "safeDistanceButtonLabel": "Configure Safe Distance Settings",
-    "chemicalThreatCatagoryLabel": "Chemical",
-    "lpgThreatCatagoryLabel": "LPG",
 
     //LPG threat types - labels from the lpgThreatTypes.json
     "smallLPGTank": "Small LPG Tank",
     "largeLPGTank": "Large LPG Tank",
     "commercialResidentialLPGTank": "Commercial/Residential LPG Tank",
     "smallLPGTruck": "Small LPG Truck",
-    "semiTankerLPG": "Semi-Tanker LPG"
+    "semiTankerLPG": "Semi-Tanker LPG",
+    
+    "threatDescriptionColLabel": "Threat Description",
+    "addThreatZoneButtonLabel": "Add threat zone",
+    "zoneDescColLabel": "Zone description",
+    "distanceLabel": "Distance (${unitAbbr})",
+    "threatTypeHelp": "<p>Make sure the following conditions are met for a threat type:<br/><ul><li>Threat type cannot be blank and it should be unique</li><li>Threat should have at least one valid zone</li><li>Zone description should be unique for a threat</li></ul><p/>",
+    "descriptionLabel": "Description",
+    "newThreatZonePopupLabel": "New threat zone",
+    "editThreatZonePopupLabel": "Edit threat zone",
+    "uniqueZoneDescriptionMsg": "Enter unique zone description, zone description with this name already exist.",
+    "symbologyColLabel": "Symbology",
+    "zoneDescriptionColLabel": "Zone description",
+    "uniqueZoneRequiredMsg": "Zone name should be unique for the",
+    //input location dropdown
+    "interactive": "Interactive", //Shown as label for interactive in location dropdown
+    "fromCoord": "Fixed Coordinate", //Shown as label for from coordinate in location dropdown
+    "existingFeature": "From Existing Features", //Shown as label for existing features in location dropdown,
+    "defaultInputLocationLabel" : "Default input location",
+    "defaultInputLayer": "Default input layer",
+    "defaultThreatType": "Default threat type",
+    "selectLabel": "Select",
+    "mandatoryLabel": "Mandatory Evacuation Distance",
+    "safeLabel": "Safe Evacuation Distance",
+    "lpgSafeDistanceLable": "Safe Distance",
+    "fireBallDiameterLable": "Fireball Diameter",
+
   }),
   "ar": 1,
   "bs": 1,

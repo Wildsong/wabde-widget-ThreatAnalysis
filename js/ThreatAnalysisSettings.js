@@ -15,265 +15,307 @@
 ///////////////////////////////////////////////////////////////////////////
 
 define([
-    'dojo/_base/declare',
-    'dojo/_base/array',
-    'dojo/_base/html',
-    'dojo/on',
-    'dojo/dom',
-    'dojo/keys',
-    './ColorPickerEditor',
-    'jimu/BaseWidget',
-    'dijit/_WidgetsInTemplateMixin',
-    'dojo/text!../templates/ThreatAnalysisSettings.html',
-    'dojo/_base/lang',
-    'dojo/Evented',
-    'dojo/dom-class',
-    'dojo/query',
-    'dojo/dom-attr',
-    'dijit/registry',
-    'dijit/focus',
-    'jimu/utils',
-    'jimu/dijit/formSelect',
-    'jimu/dijit/SymbolChooser'
-  ],
-  function (
-    declare,
-    array,
-    html,
-    on,
-    dom,
-    keys,
-    ColorPickerEditor,
-    BaseWidget,
-    _WidgetsInTemplateMixin,
-    SettingsTemplate,
-    lang,
-    Evented,
-    domClass,
-    query,
-    domAttr,
-    dijitRegistry,
-    focusUtils,
-    jimuUtils
-  ) {
-    return declare([BaseWidget, _WidgetsInTemplateMixin, Evented], {
-      baseClass: 'jimu-widget-threatAnalysisSetting',
-      templateString: SettingsTemplate,
-      selectedSettings: {}, //Holds selected Settings
-      colorPickerNodes: [], //Holds an array of color pickers populated at start up
+  'dojo/_base/declare',
+  'dijit/_WidgetBase',
+  'dijit/_TemplatedMixin',
+  'dijit/_WidgetsInTemplateMixin',
+  'dojo/text!../templates/ThreatAnalysisSettings.html',
+  'dojo/_base/lang',
+  'dojo/Evented',
+  'dojo/number',
+  'dojo/on',
+  'dojo/_base/array',
+  'jimu/dijit/SimpleTable',
+  '../newZone',
+  'jimu/utils',
+  'dijit/focus',
+  'dojo/keys',
+  'dijit/form/ValidationTextBox',
+  'dijit/form/TextBox',
+  "dijit/form/Select"
+], function (
+  declare,
+  _WidgetBase,
+  _TemplatedMixin,
+  _WidgetsInTemplateMixin,
+  template,
+  lang,
+  Evented,
+  dojoNumber,
+  on,
+  array,
+  SimpleTable,
+  newZone,
+  jimuUtils,
+  focusUtils
+) {
+  return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented], {
+    templateString: template,
+    baseClass: 'jimu-widget-threatAnalysis',
+    prevThreatType: null,
+    selectedThreatType: null,
+    selectedUnitAbbr: null,
 
-      constructor: function (options) {
-        lang.mixin(this, options);
+    constructor: function () {},
+
+    postCreate: function () {
+      this._initThreatTypeCtrl(this.threatData);
+      this.selectedUnitAbbr = (this.selectedUnitType.toLowerCase() === "feet") ? this.nls.feetAbbr :
+      this.nls.metersAbbr;
+      this._createZoneTable();
+      this._handleClickEvents();
+    },
+
+    /**
+     * Handle click events for different controls
+     **/
+    _handleClickEvents: function () {
+
+      this.own(on(this.threatType, "change", lang.hitch(this, function (value) {
+        this.threatType.set("title", value);
+        this._threatZonesTable.clear();
+        this._populateZoneTableRows(value);
+      })));
+    },
+
+    /**
+     * Create zones table
+     **/
+    _createZoneTable: function () {
+      var fields = [{
+        name: 'zoneDescription',
+        title: this.nls.zoneDescriptionColLabel,
+        type: 'text',
+        width: "70%"
       },
-
-      //Load all the options on startup
-      startup: function () {
-        var symbology = {
-          "fireballDiaOutlineColor": {
-            "color": "#d10e40",
-            "transparency": 0,
-            "type": "esriSLSSolid"
-          },
-          "fireballDiaFillColor": {
-            "color": "#d10e40",
-            "transparency": 0.88,
-            "type": "esriSFSSolid"
-          },
-          "safeDistanceOutlineColor": {
-            "color": "#ffffff",
-            "transparency": 0,
-            "type": "esriSLSNull"
-          },
-          "safeDistanceFillColor": {
-            "color": "#ffd700",
-            "transparency": 0.78,
-            "type": "esriSFSSolid"
-          }
-        };
-
-        this.colorPickerNodes = query('.colorPicker', this.domNode);
-
-        array.forEach(this.colorPickerNodes, lang.hitch(this, function (node) {
-          node = new ColorPickerEditor({
-            nls: this.nls,
-            type: domClass.contains(node, 'Line') ? 'line' : 'fill'
-          }, node);
-          this.own(node.on("ColorPickerEditorChanged", lang.hitch(this, function () {
-            this.onSettingsChanged();
-          })));
-          node.setValues({
-            "color": this.config.threatAnalysis.symbology[node.id] ?
-              this.config.threatAnalysis.symbology[node.id].color : symbology[node.id].color,
-            "transparency": this.config.threatAnalysis.symbology[node.id] ?
-              this.config.threatAnalysis.symbology[node.id].transparency : symbology[node.id].transparency
-          });
-          node.startup();
-          var selectedStyle = this.config.threatAnalysis.symbology[node.id] ?
-            this.config.threatAnalysis.symbology[node.id].type :
-            symbology[node.id].type;
-          node.dropdown.set('value', selectedStyle);
-        }));
-
-        // Code for Accessibility: keydown for color picker
-        var colorPickerDOMNodes = query('.jimu-color-pickerPopup', this.domNode);
-        array.forEach(colorPickerDOMNodes, lang.hitch(this, function (node) {
-          this.own(on(node, 'keydown', lang.hitch(this, function (event) {
-            if (event.keyCode === keys.ENTER || event.keyCode === keys.SPACE) {
-              event.currentTarget.click();
-            }
-          })));
-        }));
-        //send by default updated parameters
-        this.onSettingsChanged();
+      {
+        name: 'distance',
+        title: this.nls.distanceColLabel,
+        type: 'text',
+        hidden: true
       },
-
-      postCreate: function () {
-        this.inherited(arguments);
-        //set class to main container
-        domClass.add(this.domNode, "SettingsContainer FullWidth");
-        this._handleClickEvents();
+      {
+        name: 'symbol',
+        title: this.nls.symbologyColLabel,
+        type: 'text',
+        hidden: true
       },
-
-      /**
-       * Handle click events for different controls
-       * @memberOf widgets/ThreatAnalysis/Widget
-       **/
-      _handleClickEvents: function () {
-        //handle Mandatory Evacuation Distance button clicked
-        this.own(on(this.mandatorySettingsButton, "click", lang.hitch(this, function () {
-          this._openCloseNodes(this.mandatorySettingsButton, this.mandatoryContainer);
-        })));
-        //handle Mandatory Evacuation Distance button keydown for accessibility
-        this.own(on(this.mandatorySettingsButton, "keydown", lang.hitch(this, function (evt) {
-          if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
-            this._openCloseNodes(this.mandatorySettingsButton, this.mandatoryContainer);
-          }
-        })));
-        //handle Safe Evacuation Distance button clicked
-        this.own(on(this.safeSettingsButton, "click", lang.hitch(this, function () {
-          this._openCloseNodes(this.safeSettingsButton, this.safeContainer);
-        })));
-        //handle Safe Evacuation Distance button keydown for accessibility
-        this.own(on(this.safeSettingsButton, "keydown", lang.hitch(this, function (evt) {
-          if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
-            this._openCloseNodes(this.safeSettingsButton, this.safeContainer);
-            this._setLastFocusNode();
-          }
-        })));
-        //handle Fireball Distance button clicked
-        this.own(on(this.fireballDiaSettingsButton, "click", lang.hitch(this, function () {
-          this._openCloseNodes(this.fireballDiaSettingsButton, this.fireBallContainer);
-        })));
-        this.own(on(this.fireballDiaSettingsButton, "keydown", lang.hitch(this, function (evt) {
-          if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
-            this._openCloseNodes(this.fireballDiaSettingsButton, this.fireBallContainer);
-            this._setLastFocusNode();
-          }
-        })));
-        //handle Safe Distance button clicked
-        this.own(on(this.safeDistanceSettingsButton, "click", lang.hitch(this, function () {
-          this._openCloseNodes(this.safeDistanceSettingsButton, this.safeDistanceContainer);
-        })));
-        this.own(on(this.safeDistanceSettingsButton, "keydown", lang.hitch(this, function (evt) {
-          if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
-            this._openCloseNodes(this.safeDistanceSettingsButton, this.safeDistanceContainer);
-            this._setLastFocusNode();
-          }
-        })));
-      },
-
-      validInputs: function () {
-        var isValid = true;
-        //validate for any invalid values in all colorPicker spinners
-        array.some(this.colorPickerNodes, function (node) {
-          if (!dijitRegistry.byId(node.id).validateSpinner()) {
-            isValid = false;
-            return true;
-          }
-        }, this);
-        return isValid;
-      },
-
-      _openCloseNodes: function (node, container) {
-        var containers = query('.container', this.domNode);
-        var buttons = query('.SettingsButtonIcon', this.domNode);
-        var nodeOpen = false;
-        //open or close nodes only when all values enterd are valid
-        if (!this.validInputs()) {
-          return;
-        }
-        if (node) {
-          if (domClass.contains(node, 'LabelSettingsRightButton')) {
-            nodeOpen = true;
-          }
-        }
-        //close all dropdowns
-        array.forEach(containers, lang.hitch(this, function (otherContainer) {
-          html.addClass(otherContainer, 'controlGroupHidden');
-        }));
-        array.forEach(buttons, lang.hitch(this, function (otherNode, index) {
-          html.removeClass(otherNode, 'LabelSettingsDownButton');
-          html.addClass(otherNode, 'LabelSettingsRightButton');
-          domAttr.set(otherNode, "aria-expanded", "false");
-          if (index === buttons.length - 1) {
-            setTimeout(lang.hitch(this, function () {
-              this._setLastFocusNode();
-            }), 100);
-          }
-        }));
-
-        if (nodeOpen) {
-          //in closed state - so open and change arrow to up
-          html.removeClass(container, 'controlGroupHidden');
-          html.removeClass(node, 'LabelSettingsRightButton');
-          html.addClass(node, 'LabelSettingsDownButton');
-          domAttr.set(node, "aria-expanded", "true");
-          var colorPicker = query('.jimu-color-picker', container);
-          if (colorPicker.length) {
-            focusUtils.focus(colorPicker[0]);
-          }
-        } else {
-          focusUtils.focus(node);
-        }
-      },
-
-      /**
-       * Update's Settings on close of the widget
-       * @memberOf widgets/ThreatAnalysis/Settings
-       **/
-      onClose: function () {
-        this.onSettingsChanged();
-        this._openCloseNodes();
-      },
-
-      /**
-       * Set's the selected Settings on any value change
-       * @memberOf widgets/ThreatAnalysis/Settings
-       **/
-      onSettingsChanged: function () {
-        array.forEach(this.colorPickerNodes, lang.hitch(this, function (node) {
-          var json = {
-            'color': (dijitRegistry.byId(node.id) !== undefined) ?
-              dijitRegistry.byId(node.id).getValues().color : this.config.threatAnalysis.symbology[node.id].color,
-            'transparency': (dijitRegistry.byId(node.id) !== undefined) ?
-              dijitRegistry.byId(node.id).getValues().transparency :
-              this.config.threatAnalysis.symbology[node.id].transparency,
-            'type': (dijitRegistry.byId(node.id) !== undefined) ?
-              dijitRegistry.byId(node.id).dropdown.getValue() : this.config.threatAnalysis.symbology[node.id].type
-          };
-          this.selectedSettings[node.id] = json;
-        }));
-        this.emit("ThreatSettingsChanged", this.selectedSettings);
-      },
-
-      // Code for Accessibility : function to set last focus node
-      _setLastFocusNode: function () {
-        if (domClass.contains(this.safeDistanceSettingsButton, "LabelSettingsDownButton")) {
-          var lastSafeSettingStyleDOM = query(".dijit", dom.byId('safeDistanceFillColor').lastElementChild)[0];
-          jimuUtils.initLastFocusNode(this.refDomNode, lastSafeSettingStyleDOM);
-        } else {
-          jimuUtils.initLastFocusNode(this.refDomNode, this.safeDistanceSettingsButton);
-        }
+      {
+        name: 'actions',
+        title: this.nls.actions,
+        type: 'actions',
+        'class': 'actions',
+        actions: ['edit'],
+        width: "30%"
       }
-    });
+      ];
+
+      var args = {
+        fields: fields,
+        selectable: false
+      };
+
+      this._threatZonesTable = new SimpleTable(args);
+      this._threatZonesTable.placeAt(this.threatZonesTableNode);
+      this._threatZonesTable.startup();
+
+      this.own(on(this._threatZonesTable,
+        'actions-edit',
+        lang.hitch(this, this._onEditZoneInfoClick)));
+    },
+
+    /**
+     * This function is used to retrieve and pass zones info
+     */
+    _populateZoneTableRows: function (selectedThreatType) {
+      array.some(this.threatData, lang.hitch(this, function (threat) {
+        if (selectedThreatType === threat.threatName) {
+          array.forEach(threat.zones, lang.hitch(this, function (zone) {
+            this._addRowToZoneTable(zone);
+          }));
+        }
+      }));
+    },
+
+    /**
+     * This function is used to add row of zone info into zone infos table
+     */
+    _addRowToZoneTable: function (zone) {
+      var result, tr;
+      var zoneDistance = zone.distance;
+      var row = {
+        zoneDescription: this._getZoneNameNls(zone.name),
+        distance: dojoNumber.format(zoneDistance, {
+          places: 2
+        }),
+        symbol: JSON.stringify(zone.symbol)
+      };
+      result = this._threatZonesTable.addRow(row);
+      if (result.success && result.tr) {
+        tr = result.tr;
+        tr.zoneDescription = zone.name;
+        tr.distance = zoneDistance;
+        tr.symbol = zone.symbol;
+      }
+    },
+
+    /**
+     * This function is used to configured zones info
+     */
+    _getZoneTableInfo: function () {
+      var zoneInfoArr = [], trs;
+      trs = this._threatZonesTable.getRows();
+      array.forEach(trs, lang.hitch(this, function (tr) {
+        var data = this._threatZonesTable.getRowData(tr);
+        var zoneItem = {
+          name: "",
+          distance: 0,
+          symbol: {}
+        };
+        zoneItem.name = tr.zoneDescription;
+        zoneItem.distance = tr.distance;
+        zoneItem.symbol = JSON.parse(data.symbol);
+        zoneInfoArr.push(zoneItem);
+      }));
+      return zoneInfoArr;
+    },
+
+    /**
+     * This function is used to create new/edit threat zone popup
+     */
+    _createNewZonePopup: function (isAddZone, tr, rowData) {
+      var newZoneObj = new newZone({
+        config: this.config,
+        nls: this.nls,
+        isAddZone: isAddZone,
+        currentRow: tr,
+        currentRowData: rowData,
+        disableInputs: true,
+        unitAbbr: this.selectedUnitAbbr
+      });
+      newZoneObj.startup();
+      on(newZoneObj, "zoneInfoUpdated", lang.hitch(this, function (newZoneInfo) {
+        if (tr) {
+          var rowData = {};
+          rowData.symbol = JSON.stringify(newZoneInfo.symbol);
+          tr.symbol = {};
+          tr.symbol = newZoneInfo.symbol;
+          this._threatZonesTable.editRow(tr, rowData);
+          this._updateOriginalSymbolInfo();
+          setTimeout(lang.hitch(this, function () {
+            focusUtils.focus(jimuUtils.getFirstFocusNode(this.refDomNode));
+          }), 100);
+          this.emit("ThreatSettingsChanged", {
+            threatName: this.threatType.value,
+            zones: this._getZoneTableInfo()
+          });
+        }
+      }));
+      on(newZoneObj, "cancelBtnClicked", lang.hitch(this, function () {
+        setTimeout(lang.hitch(this, function () {
+          focusUtils.focus(jimuUtils.getFirstFocusNode(this.refDomNode));
+        }), 100);
+      }));
+    },
+
+    /**
+     * This function is used to store changed symbology in original threat data array
+     */
+    _updateOriginalSymbolInfo: function () {
+      array.some(this.threatData, lang.hitch(this, function (threat) {
+        if (this.threatType.value === threat.threatName) {
+          threat.zones = this._getZoneTableInfo();
+          this._threatZonesTable.clear();
+          array.forEach(threat.zones, lang.hitch(this, function (zone) {
+            this._addRowToZoneTable(zone);
+          }));
+        }
+      }));
+    },
+
+    /**
+     * This function is used to handle edit icon click of row
+     */
+    _onEditZoneInfoClick: function (tr) {
+      var rowData = this._threatZonesTable.getRowData(tr);
+      if (rowData) {
+        this._createNewZonePopup(false, tr, rowData);
+      }
+    },
+
+    /**
+     * Add options to the threat type select control
+     */
+    _initThreatTypeCtrl: function (data) {
+      var self = this;
+
+      var threatTypeLabels = {
+        "Pipe Bomb": "pipeBombLabel",
+        "Suicide Bomb": "suicideBombLabel",
+        "Briefcase": "briefcaseLabel",
+        "Car": "carLabel",
+        "SUV/VAN": "suvVanLabel",
+        "Small Delivery Truck": "smallDeliveryTruckLabel",
+        "Container/Water Truck": "containerWaterTruckLabel",
+        "Semi-Trailer": "semiTrailerLabel",
+        "Small LPG Tank": "smallLPGTank",
+        "Large LPG Tank": "largeLPGTank",
+        "Commercial/Residential LPG Tank": "commercialResidentialLPGTank",
+        "Small LPG Truck": "smallLPGTruck",
+        "Semi-Tanker LPG": "semiTankerLPG"
+      };
+
+      var getThreatTypeLabel = function (threatName) {
+        if (threatTypeLabels[threatName] !== undefined) {
+          return self.nls[threatTypeLabels[threatName]];
+        }
+        return threatName;
+      };
+      this.threatType.options = [];
+      // Create an empty option
+      this.threatType.addOption({
+        value: "",
+        label: this.nls.selectLabel,
+        defaultSelected: true,
+        selected: true,
+        unit: ""
+      });
+      array.forEach(data, function (item) {
+        this.threatType.addOption({
+          value: item.threatName,
+          label: jimuUtils.sanitizeHTML(getThreatTypeLabel(item.threatName)),
+          defaultSelected: false,
+          selected: false
+        });
+      }, self);
+    },
+
+    /**
+     * function to set last focus node
+     */
+    _setLastFocusNode: function () {
+      jimuUtils.initLastFocusNode(this.refDomNode, this.threatType.domNode);
+    },
+
+    /**
+     * Return NLS label representation of zone name
+     */
+    _getZoneNameNls: function (zoneName) {
+      var self = this;
+      var zoneLabels = {
+        "Mandatory Evacuation Distance": "mandatoryLabel",
+        "Safe Evacuation Distance": "safeLabel",
+        "Fireball Diameter": "fireBallDiameterLable",
+        "Safe Distance": "lpgSafeDistanceLable"
+      };
+
+      var getZoneLabel = function (zoneName) {
+        if (zoneLabels[zoneName] !== undefined) {
+          return self.nls[zoneLabels[zoneName]];
+        }
+        return zoneName;
+      };
+      return getZoneLabel(zoneName);
+    }
   });
+});

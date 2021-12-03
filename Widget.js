@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 ///////////////////////////////////////////////////////////////////////////
-/*globals $:false */
 define([
     'dojo/_base/declare',
     'jimu/BaseWidget',
@@ -26,7 +25,6 @@ define([
     'dojo/on',
     'dojo/topic',
     'dojo/fx',
-    'dojo/string',
     'dojo/dom-attr',
     'dojo/query',
     'dojo/number',
@@ -69,6 +67,9 @@ define([
     'esri/SpatialReference',
     'dojo/Deferred',
     'dojo/promise/all',
+    './utils',
+    'jimu/dijit/SimpleTable',
+    'dojo/string',
 
     './js/jquery.easy-autocomplete',
     'dijit/form/NumberTextBox',
@@ -89,7 +90,6 @@ define([
     on,
     topic,
     coreFx,
-    dojoString,
     domAttr,
     query,
     dojoNumber,
@@ -126,7 +126,10 @@ define([
     GeometryService,
     SpatialReference,
     Deferred,
-    all
+    all,
+    utilsHelper,
+    Table,
+    string
   ) {
     return declare([BaseWidget, dijitWidgetBase, dijitWidgetsInTemplate], {
       baseClass: 'jimu-widget-threatAnalysis',
@@ -138,19 +141,19 @@ define([
       _renderer: null, // renderer to be used on the threat Feature Servicem
       _layerList: null, // list of layers from webmap
       _drawBox: null, // interactive draw tools
-      _currentGeometry: null, // holds the newly created geometry from interactive tool
+      _currentGeometry: [], // holds the newly created geometry from interactive tool
       _pointSymbol: null, // holds the point symbol
       _polylineSymbol: null, // holds the polyline symbol
       _polygonSymbol: null, // holds the polygon symbol
       _selectedUnitType: null, // holds Feet or Meters
       _addLayerToMap: true, // flag to add layer to map
-      geometryService: null, // holds GeometryService instance
+      geometryService: null, // holds GeometryService instance,
+      threatsGraphicsLayersObj: {}, //hold layer definition for each threat
 
       postMixInProperties: function () {
         //mixin default nls with widget nls
         this.inherited(arguments);
-        this.nls.common = {};
-        lang.mixin(this.nls.common, window.jimuNls.common);
+        lang.mixin(this.nls, window.jimuNls.common, window.jimuNls.units);
         this.isRenderIdForAttrs = true;
       },
 
@@ -164,6 +167,12 @@ define([
             this._jimuLayerInfos = operLayerInfos;
           }));
         this.openAtStartAysn = true; //’this’ is widget object
+
+        //For backward if config has threatAnalysis key then transform config json to new config json
+        if (this.config.hasOwnProperty("threatAnalysis")) {
+          this.config = utilsHelper.transformOldConfigToNewConfigJson(this.config);
+        }
+
         //set up listeners
         topic.subscribe("setBusyIndicator", lang.hitch(this, function (show) {
           if (show) {
@@ -176,6 +185,7 @@ define([
         topic.subscribe("clear", lang.hitch(this, function () {
           this._reset();
           this._moveMap();
+          this._showOrHideLayerCountHint();
         }));
 
         //set up listeners for accessibiity
@@ -216,76 +226,6 @@ define([
         //create graphics layer for threat location and add to map
         this._initGL();
 
-        //create a feature collection for the drawn ERG to populate
-        var featureCollection = {
-          "layerDefinition": {
-            "geometryType": "esriGeometryPolygon",
-            "objectIdField": "ObjectID",
-            "fields": [{
-              "name": "ObjectID",
-              "alias": "ObjectID",
-              "type": "esriFieldTypeOID"
-            }, {
-              "name": "threat_type",
-              "alias": this.nls.threatType,
-              "type": "esriFieldTypeString"
-            }, {
-              "name": "zone_type",
-              "alias": this.nls.zoneTypeLabel,
-              "type": "esriFieldTypeString"
-            }, {
-              "name": "mandatory_dist",
-              "alias": this.nls.mandatoryLabel,
-              "type": "esriFieldTypeDouble"
-            }, {
-              "name": "safe_dist",
-              "alias": this.nls.safeLabel,
-              "type": "esriFieldTypeDouble"
-            }, {
-              "name": "lpg_fireball_dia",
-              "alias": this.nls.fireBallDiameterFieldAlias,
-              "type": "esriFieldTypeDouble"
-            }, {
-              "name": "lpg_safe_dist",
-              "alias": this.nls.lpgSafeDistanceFieldAlias,
-              "type": "esriFieldTypeDouble"
-            }, {
-              "name": "units",
-              "alias": this.nls.unitsLabel,
-              "type": "esriFieldTypeString"
-            }],
-            "extent": this.map.extent
-          }
-        };
-
-        //create the threat feature layer
-        this.ThreatArea = new FeatureLayer(featureCollection, {
-          id: this.nls.threatGraphicLayer,
-          outFields: ["*"]
-        });
-
-        //add the threat feature layer and the ERG extent graphics layer to the map
-        this.map.addLayer(this.ThreatArea);
-
-        var featureLayerInfo;
-        //must ensure the layer is loaded before we can access it to turn on the labels if required
-        if (this.ThreatArea.loaded) {
-          // show or hide labels
-          featureLayerInfo =
-            jimuLayerInfos.getInstanceSync().getLayerInfoById(this.nls.threatGraphicLayer);
-          if (featureLayerInfo) {
-            featureLayerInfo.enablePopup();
-          }
-        } else {
-          this.ThreatArea.on("load", lang.hitch(this, function () {
-            // show or hide labels
-            featureLayerInfo =
-              jimuLayerInfos.getInstanceSync().getLayerInfoById(this.nls.threatGraphicLayer);
-            if (featureLayerInfo) {
-              featureLayerInfo.enablePopup();
-            }
-          }));
-        }
         this.threatCoordinateControl = new CoordinateControl({
           parentWidget: this,
           label: this.nls.threatAnalysisCoordInputLabel,
@@ -299,6 +239,8 @@ define([
         });
         this.threatCoordinateControl.placeAt(this.threatAnalysisCoordContainer);
         this.threatCoordinateControl.startup();
+
+        this._initThreatTypeTable();
 
         //we need an extra class added the the coordinate format node for the Dart theme
         if (this.appConfig.theme.name === 'DartTheme') {
@@ -319,31 +261,29 @@ define([
           "checked": false,
           "label": this.nls.publishToNewLayer
         }, domConstruct.create("div", {}, this.checkBoxParentContainer));
-
+        //if config has threats then populate threat table with config threats
+        //else populate table with json files
+        if (this.config.hasOwnProperty("threats")) {
+          this._threatData = this.config.threats;
+        } else {
+          //populate default values in threat types table
+          this._threatData = utilsHelper.getDefaultThreats(dojoJSON.parse(chemicalThreats), dojoJSON.parse(lpgThreats));
+        }
+        //convert distance meter to feet for minimum changes
+        if (this.config.generalSettings && this.config.generalSettings.unit &&
+          this.config.generalSettings.unit.toLowerCase() === "meters") {
+          this._threatData = this._convertDistanceMetersToFeet(this._threatData);
+        }
+        //sort zones in ascending order of distance
+        this._sortZonesInAscOrder();
         //set up all the handlers for the different click events
         this._initListeners();
 
-        //Create settings page
-        this._createSettings();
-
-        //for backward
-        if (this.config.hasOwnProperty("threatTypes")) {
-          this._threatData = this.config.threatTypes;
-          //convert distance meter to feet for minimum changes
-          this._threatData = this._convertDistanceMetersToFeet(this._threatData, true);
-        } else {
-          //Retrieve threat types
-          this._threatData = dojoJSON.parse(chemicalThreats);
-        }
-
-        //for backward
-        if (this.config.hasOwnProperty("lpgThreatTypes")) {
-          this._lpgThreatData = this.config.lpgThreatTypes;
-          //convert distance meter to feet for minimum changes
-          this._lpgThreatData = this._convertDistanceMetersToFeet(this._lpgThreatData, false);
-        } else {
-          this._lpgThreatData = dojoJSON.parse(lpgThreats);
-        }
+        this._initGLForThreats();
+        //set renderer to each threat layer
+        array.forEach(this._threatData, lang.hitch(this, function (threat) {
+          this._createRenderer(threat);
+        }));
 
         //Retrieve all polygon layers from webmap
         var polygonLayerList = this._getAllMapLayers();
@@ -351,14 +291,29 @@ define([
         //Init draw box
         this._initDrawBox();
 
-        // populate the publish list
-        this._populateSelectList(this.featureLayerList, polygonLayerList,
-          this.config.threatAnalysis.operationalLayer.name, false);
+        //set values from config if available
+        if (this.config.hasOwnProperty("generalSettings") && this.config.generalSettings.operationalLayer &&
+          this.config.generalSettings.operationalLayer.name !== "") {
+          // populate the publish list
+          this._populateSelectList(this.featureLayerList, polygonLayerList,
+            this.config.generalSettings.operationalLayer.name, false);
+        } else {
+          // populate the publish list
+          this._populateSelectList(this.featureLayerList, polygonLayerList,
+            '', false);
+          // Hide the drop-down list
+          domClass.add(this.featureLayerList.domNode, 'controlGroupHidden');
+          // Set the checkbox to true since user is publishing to a new layer
+          this.publishNewLayer.setValue(true);
+          // Show the textbox
+          domClass.remove(this.addTANameArea.domNode, 'controlGroupHidden');
+        }
 
         //If there are no feature layers in the dropdown
         if (this.featureLayerList.options.length === 0) {
           this.publishNewLayer.setValue(true);
           domClass.add(this.checkBoxParentContainer, "controlGroupHidden");
+          domClass.add(this.hintNode, 'controlGroupHidden');
         }
         // Set selected index to interactive
         this.inputTypeSelect.selectedIndex = 0;
@@ -368,28 +323,38 @@ define([
 
         //Init threat type drop down
         this._initThreatTypeCtrl(this._threatData);
-
-        // Set invalid and range properties messages
-        this.mandatoryDist.invalidMessage = this.nls.invalidNumberMessage;
-        this.mandatoryDist.rangeMessage = this.nls.invalidRangeMessage;
-
-        this.safeDist.invalidMessage = this.nls.invalidNumberMessage;
-        this.safeDist.rangeMessage = this.nls.invalidRangeMessage;
-
         this.addTANameArea.invalidMessage = this.nls.invalidLayerName;
         this.addTANameArea.missingMessage = this.nls.missingLayerNameMessage;
-
-        this.unitType.set("value", this.config.threatAnalysis.unit);
-        this._selectedUnitType = this.unitType.get("value");
-
-        if (this.config.threatAnalysis.operationalLayer.name === '') {
-          // Hide the drop-down list
-          domClass.add(this.featureLayerList.domNode, 'controlGroupHidden');
-          // Set the checkbox to true since user is publishing to a new layer
-          this.publishNewLayer.setValue(true);
-          // Show the textbox
-          domClass.remove(this.addTANameArea.domNode, 'controlGroupHidden');
+        //Set values from config if available
+        if (this.config.hasOwnProperty("generalSettings")) {
+          if (this.config.generalSettings.unit && this.config.generalSettings.unit !== "feet") {
+            this.unitType.set("value", this.config.generalSettings.unit);
+          } else {
+            this.unitType.set("value", "feet");
+          }
+          this._selectedUnitType = this.unitType.get("value");
+          if (this.config.generalSettings.layerToSelectFeatures &&
+            this.config.generalSettings.layerToSelectFeatures !== "") {
+            // populate the layer list
+            this._populateSelectList(this.layerSelect, this._getLayers(),
+              this.config.generalSettings.layerToSelectFeatures, true);
+          } else {
+            this._populateSelectList(this.layerSelect, this._getLayers(), '', true);
+          }
+          if (this.config.generalSettings.defaultInputType && this.config.generalSettings.defaultInputType !== "") {
+            this.inputTypeSelect.set("value", this.config.generalSettings.defaultInputType);
+          } else {
+            this.inputTypeSelect.set("value", "interactive");
+          }
+          if (this.config.generalSettings.defaultThreatType && this.config.generalSettings.defaultThreatType !== "") {
+            this.threatType.set("value", this.config.generalSettings.defaultThreatType);
+          } else {
+            this.threatType.set("value", "");
+          }
         }
+        setTimeout(lang.hitch(this, function () {
+          this._resetThreatZoneTableMaxHeight();
+        }), 500);
         this._setFirstLastFocusNodes();
       },
 
@@ -418,12 +383,7 @@ define([
         if (nl.length > 0) {
           domStyle.set(nl[0], "width", (this.threatPublishButton.clientWidth - 44) + "px");
         }
-
-        // Resize the feature list select component when widget is resized
-        nl = query(".dijitValidationTextBoxLabel", this.layerSelect.domNode);
-        if (nl.length > 0) {
-          domStyle.set(nl[0], "width", (this.threatCatagorySelect.domNode.clientWidth - 44) + "px");
-        }
+        this._resetThreatZoneTableMaxHeight();
       },
 
       /**
@@ -489,9 +449,13 @@ define([
         if (this._threatLocation) {
           this.map.removeLayer(this._threatLocation);
         }
-        if (this.ThreatArea) {
-          this.map.removeLayer(this.ThreatArea);
+        //remove all threat layer from map
+        for (var layer in this.threatsGraphicsLayersObj) {
+          if (this.threatsGraphicsLayersObj.hasOwnProperty(layer)) {
+            this.map.removeLayer(this.threatsGraphicsLayersObj[layer]);
+          }
         }
+        this.threatsGraphicsLayersObj = {};
         if (this.drawBox) {
           this.drawBox.clear();
         }
@@ -548,72 +512,16 @@ define([
         // Create an empty option
         this.threatType.addOption({
           value: "",
-          label: "",
-          defaultSelected: true,
-          selected: true,
-          unit: ""
+          label: this.nls.selectLabel,
+          selected: true
         });
         array.forEach(data, function (item) {
           this.threatType.addOption({
-            value: item.Threat,
-            label: jimuUtils.sanitizeHTML(getThreatTypeLabel(item.Threat)),
-            defaultSelected: false,
-            selected: false,
-            unit: item.Unit
+            value: item.threatName,
+            label: jimuUtils.sanitizeHTML(getThreatTypeLabel(item.threatName)),
+            selected: false
           });
         }, self);
-      },
-
-      /**
-       * Init easy auto complete jquery control
-       */
-      _initAutoCompleteCtrl: function (data) {
-        //set up the options for the threat input selector
-        var options = {
-          data: data,
-          placeholder: this.nls.threatPlaceholder,
-          getValue: function (element) {
-            return element.Threat;
-          },
-          list: {
-            match: {
-              enabled: true
-            },
-            sort: {
-              enabled: true
-            },
-            onChooseEvent: lang.hitch(this, function () {
-              var index = $(this.threatType).getSelectedItemIndex();
-              this._selectedThreat =
-                $(this.threatType).getSelectedItemData(index);
-              var threatCatagory = this.threatCatagorySelect.get("value");
-              if (threatCatagory === "chemicalThreatCatogory") {
-                this._setDistanceInputControls({
-                  mandatoryDistance: this._selectedThreat.Bldg_Dist,
-                  safeDistance: this._selectedThreat.Outdoor_Dist
-                });
-              } else {
-                this._setDistanceInputControls({
-                  mandatoryDistance: this._selectedThreat.Fireball_Dia,
-                  safeDistance: this._selectedThreat.Safe_Dist
-                });
-              }
-
-              if (this.threatCoordinateControl.coordtext.value !== '') {
-                this._toggleCreateZoneButton(false);
-              }
-            }),
-            onShowListEvent: lang.hitch(this, function () {
-              this._selectedThreat = null;
-              this._setDistanceInputControls({
-                mandatoryDistance: 0,
-                safeDistance: 0
-              });
-              this._toggleCreateZoneButton(true);
-            })
-          }
-        };
-        $(this.threatType).easyAutocomplete(options);
       },
 
       /**
@@ -635,16 +543,22 @@ define([
          * Threat panel
          **/
         //handle Settings button
-        if (!this.config.threatAnalysis.lockSettings) {
+        if (this.config.hasOwnProperty("threatAnalysis") && !this.config.threatAnalysis.lockSettings ||
+          !this.config.hasOwnProperty("threatAnalysis")) {
           //handle Settings button
           this.own(on(this.threatAnalysisSettingsButton, "click", lang.hitch(this, function () {
+            //Create settings page
+            this._createSettings();
             this._showPanel("threatSettingsPage");
+            this._setFirstLastFocusNodes();
           })));
 
           this.own(on(this._jimuLayerInfos, 'layerInfosChanged', lang.hitch(this, this._onLayerInfosChange)));
           //handle Settings button keydown for accessibility
           this.own(on(this.threatAnalysisSettingsButton, "keydown", lang.hitch(this, function (evt) {
             if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
+              //Create settings page
+              this._createSettings();
               this._showPanel("threatSettingsPage");
               this._setFirstLastFocusNodes();
             }
@@ -669,12 +583,7 @@ define([
         //Handle click event of clear threat button
         this.own(on(this.threatClearButton, 'click', lang.hitch(this, function () {
           this.threatType.set("value", "");
-          this._setDistanceInputControls({
-            mandatoryDistance: 0,
-            safeDistance: 0
-          }, "feet");
-          this._setLabelText(this.mandatoryLabel, this.nls.mandatoryLabel);
-          this._setLabelText(this.safeLabel, this.nls.safeLabel);
+          this._threatZonesTable.clear();
           this._selectedThreat = null;
           if (this.map.infoWindow.isShowing) {
             this.map.infoWindow.hide();
@@ -687,12 +596,7 @@ define([
         this.own(on(this.threatClearButton, 'keydown', lang.hitch(this, function (evt) {
           if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
             this.threatType.set("value", "");
-            this._setDistanceInputControls({
-              mandatoryDistance: 0,
-              safeDistance: 0
-            }, "feet");
-            this._setLabelText(this.mandatoryLabel, this.nls.mandatoryLabel);
-            this._setLabelText(this.safeLabel, this.nls.safeLabel);
+            this._threatZonesTable.clear();
             this._selectedThreat = null;
             if (this.map.infoWindow.isShowing) {
               this.map.infoWindow.hide();
@@ -706,7 +610,8 @@ define([
         this.own(on(this.threatCoordinateControl.dt, 'DrawComplete', lang.hitch(this, function () {
           this.threatCoordinateControl.deactivateDrawTool();
           if (this.threatCoordinateControl.currentClickPointDD) {
-            this._currentGeometry = this.threatCoordinateControl.currentClickPointDD;
+            this._currentGeometry = [];
+            this._currentGeometry.push(this.threatCoordinateControl.currentClickPointDD);
             if (this._selectedThreat !== null) {
               this._toggleCreateZoneButton(true);
             }
@@ -725,7 +630,8 @@ define([
         this.own(on(this.threatCoordinateControl, 'get-coordinate-complete', lang.hitch(this, function () {
           setTimeout(lang.hitch(this, function () {
             if (this.threatCoordinateControl.currentClickPointDD) {
-              this._currentGeometry = this.threatCoordinateControl.currentClickPointDD;
+              this._currentGeometry = [];
+              this._currentGeometry.push(this.threatCoordinateControl.currentClickPointDD);
               if (this._selectedThreat !== null) {
                 this._toggleCreateZoneButton(true);
               }
@@ -738,23 +644,20 @@ define([
          **/
         //Handle click event of settings back button
         this.own(on(this.threatSettingsPanelBackButton, "click", lang.hitch(this, function () {
-          if (this._threatSettingsInstance.validInputs()) {
-            this._threatSettingsInstance.onClose();
-            this._showPanel(this._lastOpenPanel);
-          }
+          this._threatSettingsInstance.destroy();
+          this._threatSettingsInstance = null;
+          this._showPanel(this._lastOpenPanel);
         })));
 
         //Handle keydown event of settings back button for accessibility
         this.own(on(this.threatSettingsPanelBackButton, "keydown", lang.hitch(this, function (evt) {
           if (evt.keyCode === keys.ENTER || evt.keyCode === keys.SPACE) {
-            if (this._threatSettingsInstance.validInputs()) {
-              this._threatSettingsInstance.onClose();
-              this._showPanel(this._lastOpenPanel);
-              setTimeout(lang.hitch(this, function () {
-                this._setFirstLastFocusNodes();
-              }), 0);
-
-            }
+            this._threatSettingsInstance.destroy();
+            this._threatSettingsInstance = null;
+            this._showPanel(this._lastOpenPanel);
+            setTimeout(lang.hitch(this, function () {
+              this._setFirstLastFocusNodes();
+            }), 0);
           }
         })));
 
@@ -814,9 +717,13 @@ define([
           nls: this.nls
         });
         this.own(on(this.selectFeaturesTool, 'selection-complete', lang.hitch(this, function (results) {
-          this._toggleCreateZoneButton(this._selectedThreat && results.geometry ?
-            true : false);
-          this._currentGeometry = results.geometry;
+          this._currentGeometry = [];
+          if (results.geometry && results.geometry.length > 0) {
+            array.forEach(results.geometry, lang.hitch(this, function (g) {
+              this._currentGeometry.push(g);
+            }));
+          }
+          this._toggleCreateZoneButton(this._selectedThreat && this._currentGeometry.length > 0);
           focusUtils.focus(this.threatType.domNode);
         })));
         this.selectFeaturesTool.placeAt(this.drawingSection);
@@ -839,24 +746,6 @@ define([
         this.own(on(this.featureLayerList, 'change', lang.hitch(this, function () {
           this.resize();
         })));
-        this.own(on(this.threatCatagorySelect, 'change', lang.hitch(this, function (value) {
-          if (value === "chemicalThreatCatogory") {
-            this._initThreatTypeCtrl(this._threatData);
-            this.mandatoryLabel.innerHTML = this.nls.mandatoryLabel;
-            this.safeLabel.innerHTML = this.nls.safeLabel;
-          } else {
-            this._initThreatTypeCtrl(this._lpgThreatData);
-            this.mandatoryLabel.innerHTML = this.nls.fireBallDiameterLable;
-            this.safeLabel.innerHTML = this.nls.lpgSafeDistanceLable;
-          }
-          this._setDistanceInputControls({
-            mandatoryDistance: 0,
-            safeDistance: 0
-          }, "feet");
-          if (this.threatType.options.length === 1) {
-            this._toggleCreateZoneButton(false);
-          }
-        })));
       },
 
       _threatPublishButtonClicked: function () {
@@ -877,10 +766,9 @@ define([
           serviceItemId: "",
           map: this.map,
           appConfig: this.appConfig,
-          renderer: this._renderer,
           publishMessage: this.publishMessage,
           nls: this.nls,
-          graphics: this.ThreatArea.graphics
+          layers : this._getLayersWithGraphics()
         };
 
         // Retrieve selected layer by user from drop down list
@@ -902,6 +790,21 @@ define([
       },
 
       /**
+       * This function is used to get layer which has graphics
+       */
+      _getLayersWithGraphics: function () {
+        var validLayers = [];
+        for (var layer in this.threatsGraphicsLayersObj) {
+          if (this.threatsGraphicsLayersObj.hasOwnProperty(layer)) {
+            if (this.threatsGraphicsLayersObj[layer].graphics.length > 0) {
+              validLayers.push(this.threatsGraphicsLayersObj[layer]);
+            }
+          }
+        }
+        return validLayers;
+      },
+
+      /**
        * If checkbox is checked, clear textbox and allow user to
        * input a new layer name.
        */
@@ -911,9 +814,11 @@ define([
           domClass.remove(this.addTANameArea.domNode, 'controlGroupHidden');
           this.addTANameArea.reset();
           this.addTANameArea.focus();
+          this._showOrHideLayerCountHint();
         } else {
           domClass.add(this.addTANameArea.domNode, 'controlGroupHidden');
           domClass.remove(this.featureLayerList.domNode, 'controlGroupHidden');
+          domClass.add(this.hintNode, 'controlGroupHidden');
         }
         this._addLayerToMap = this.publishNewLayer.checked;
       },
@@ -941,6 +846,9 @@ define([
           }).play();
           this.coordInputDiv.style.display = this.interActiveDiv.style.display = "none";
         }
+        setTimeout(lang.hitch(this, function () {
+          this._resetThreatZoneTableMaxHeight();
+        }), 500);
       },
 
       /**
@@ -956,33 +864,45 @@ define([
        */
       _onThreatTypeSelectionChanged: function () {
         var threatType = this.threatType.get("value");
-        var threatCatagory = this.threatCatagorySelect.get("value");
-        var data = threatCatagory === "chemicalThreatCatogory" ? this._threatData : this._lpgThreatData;
-        array.forEach(data, lang.hitch(this, function (item) {
-          if (item.Threat === threatType) {
-            if (threatCatagory === "chemicalThreatCatogory") {
-              this._selectedThreat = {
-                threatType: item.Threat,
-                mandatoryDistance: item.Bldg_Dist,
-                safeDistance: item.Outdoor_Dist,
-                unitType: item.Unit
-              };
+        this._threatZonesTable.clear();
+        if (threatType !== "") {
+          if (this.threatsGraphicsLayersObj.hasOwnProperty(threatType)) {
+            this._populateThreatZoneTableRows(threatType);
+            this._selectedThreat = this._getSelectedThreatInfo(threatType);
+            var targetGL = this.threatsGraphicsLayersObj[threatType];
+            //add the threat feature layer and the ERG extent graphics layer to the map
+            this.map.addLayer(targetGL);
+            var featureLayerInfo;
+            //must ensure the layer is loaded before we can access it to turn on the labels if required
+            if (targetGL.loaded) {
+              // show or hide labels
+              featureLayerInfo =
+                jimuLayerInfos.getInstanceSync().getLayerInfoById(targetGL.id);
+              if (featureLayerInfo) {
+                featureLayerInfo.enablePopup();
+              }
             } else {
-              this._selectedThreat = {
-                threatType: item.Threat,
-                mandatoryDistance: item.Fireball_Dia,
-                safeDistance: item.Safe_Dist,
-                unitType: item.Unit
-              };
+              targetGL.on("load", lang.hitch(this, function () {
+                // show or hide labels
+                featureLayerInfo =
+                  jimuLayerInfos.getInstanceSync().getLayerInfoById(targetGL.id);
+                if (featureLayerInfo) {
+                  featureLayerInfo.enablePopup();
+                }
+              }));
             }
-
-            this._setDistanceInputControls(this._selectedThreat, this._selectedUnitType);
+            this._createRenderer(this._selectedThreat);
+            //refresh the layer to apply the settings
+            targetGL.refresh();
             //Enable create zone button
-            if (this._currentGeometry) {
+            if (this._currentGeometry.length > 0) {
               this._toggleCreateZoneButton(true);
             }
           }
-        }));
+        } else {
+          this._toggleCreateZoneButton(false);
+          this._selectedThreat = null;
+        }
       },
 
       /**
@@ -990,18 +910,9 @@ define([
        */
       _onUnitTypeSelectionChanged: function () {
         this._selectedUnitType = this.unitType.get("value");
-        if (this._selectedThreat) {
-          this._setDistanceInputControls(this._selectedThreat, this._selectedUnitType);
+        if (this._selectedThreat !== null) {
+          this._updateThreatZoneTable(this._selectedUnitType);
         }
-      },
-
-      /**
-       * Sets the title and innerHTML for a component
-       */
-      _setLabelText: function (node, message) {
-        array.forEach(["title", "innerHTML"], lang.hitch(this, function (attr) {
-          domAttr.set(node, attr, message);
-        }));
       },
 
       /**
@@ -1030,21 +941,21 @@ define([
       },
 
       _clearLayers: function () {
-        this.ThreatArea.clear();
-        //refresh Threat layer to make sure any labels are removed
-        this.ThreatArea.refresh();
         this._toggleCreateZoneButton(false);
         this._threatLocation.clear();
         this.threatCoordinateControl.clear();
         this.selectFeaturesTool.reset();
-        this._currentGeometry = null;
+        this._currentGeometry = [];
         this._selectedThreat = null;
         this.drawBox.clear();
         this.threatType.set("value", "");
-        this._setDistanceInputControls({
-          mandatoryDistance: 0,
-          safeDistance: 0
-        }, "feet");
+        this._threatZonesTable.clear();
+        for (var layer in this.threatsGraphicsLayersObj) {
+          if (this.threatsGraphicsLayersObj.hasOwnProperty(layer)) {
+            this.threatsGraphicsLayersObj[layer].clear();
+            this.threatsGraphicsLayersObj[layer].refresh();
+          }
+        }
       },
 
       /**
@@ -1056,7 +967,9 @@ define([
           nls: this.nls,
           config: this.config,
           appConfig: this.appConfig,
-          refDomNode: this.domNode
+          refDomNode: this.domNode,
+          threatData: this._threatData,
+          selectedUnitType : this._selectedUnitType
         }, domConstruct.create("div", {}, this.threatSettingsNode));
 
         //add a listener for a change in settings
@@ -1068,133 +981,58 @@ define([
       },
 
       /**
-       * This function is used to create Renderer ForChemical Threats
+       * This function is used to create Renderer Threats
        */
       _createRenderer: function (updatedSettings) {
-        var mandatoryFillColor =
-          new Color(updatedSettings.mandatoryFillColor.color);
-        var mandatoryFillTrans =
-          (1 - updatedSettings.mandatoryFillColor.transparency) * 255;
-        var mandatoryOutlineColor =
-          new Color(updatedSettings.mandatoryOutlineColor.color);
-        var mandatoryOutlineTrans =
-          (1 - updatedSettings.mandatoryOutlineColor.transparency) * 255;
+        var uniqueValueInfos = [], symbol;
+        array.forEach(updatedSettings.zones, lang.hitch(this, function (zone) {
+          var fillColor =
+            new Color(zone.symbol.fillColor.color);
+          var fillTrans =
+            (1 - zone.symbol.fillColor.transparency) * 255;
+          var outlineColor =
+            new Color(zone.symbol.outlineColor.color);
+          var outlineTrans =
+            (1 - zone.symbol.outlineColor.transparency) * 255;
 
-        var safeFillColor =
-          new Color(updatedSettings.safeFillColor.color);
-        var safeFillTrans =
-          (1 - updatedSettings.safeFillColor.transparency) * 255;
-        var safeOutlineColor =
-          new Color(updatedSettings.safeOutlineColor.color);
-        var safeOutlineTrans =
-          (1 - updatedSettings.safeOutlineColor.transparency) * 255;
-
-        var fireballDiaFillColor =
-          new Color(updatedSettings.fireballDiaFillColor.color);
-        var fireballDiaFillTrans =
-          (1 - updatedSettings.fireballDiaFillColor.transparency) * 255;
-        var fireballDiaOutlineColor =
-          new Color(updatedSettings.fireballDiaOutlineColor.color);
-        var fireballDiaOutlineTrans =
-          (1 - updatedSettings.fireballDiaOutlineColor.transparency) * 255;
-
-        var safeDistanceFillColor =
-          new Color(updatedSettings.safeDistanceFillColor.color);
-        var safeDistanceFillTrans =
-          (1 - updatedSettings.safeDistanceFillColor.transparency) * 255;
-        var safeDistanceOutlineColor =
-          new Color(updatedSettings.safeDistanceOutlineColor.color);
-        var safeDistanceOutlineTrans =
-          (1 - updatedSettings.safeDistanceOutlineColor.transparency) * 255;
+          symbol = {
+            "value": zone.name,
+            "symbol": {
+              "color": [fillColor.r,
+              fillColor.g,
+              fillColor.b,
+                fillTrans
+              ],
+              "outline": {
+                "color": [outlineColor.r,
+                outlineColor.g,
+                outlineColor.b,
+                  outlineTrans
+                ],
+                "width": 1,
+                "type": "esriSLS",
+                "style": zone.symbol.outlineColor.type
+              },
+              "type": "esriSFS",
+              "style": zone.symbol.fillColor.type
+            }
+          };
+          uniqueValueInfos.push(symbol);
+        }));
 
         var uvrJson = {
           "type": "uniqueValue",
           "field1": "zone_type",
-          "uniqueValueInfos": [{
-            "value": this.nls.mandatoryLabel,
-            "symbol": {
-              "color": [mandatoryFillColor.r,
-                mandatoryFillColor.g,
-                mandatoryFillColor.b,
-                mandatoryFillTrans
-              ],
-              "outline": {
-                "color": [mandatoryOutlineColor.r,
-                  mandatoryOutlineColor.g,
-                  mandatoryOutlineColor.b,
-                  mandatoryOutlineTrans
-                ],
-                "width": 1,
-                "type": "esriSLS",
-                "style": updatedSettings.mandatoryOutlineColor.type
-              },
-              "type": "esriSFS",
-              "style": updatedSettings.mandatoryFillColor.type
-            }
-          }, {
-            "value": this.nls.safeLabel,
-            "symbol": {
-              "color": [safeFillColor.r, safeFillColor.g, safeFillColor.b, safeFillTrans],
-              "outline": {
-                "color": [safeOutlineColor.r,
-                  safeOutlineColor.g,
-                  safeOutlineColor.b,
-                  safeOutlineTrans
-                ],
-                "width": 1,
-                "type": "esriSLS",
-                "style": updatedSettings.safeOutlineColor.type
-              },
-              "type": "esriSFS",
-              "style": updatedSettings.safeFillColor.type
-            }
-          }, {
-            "value": this.nls.fireBallDiameterLable,
-            "symbol": {
-              "color": [fireballDiaFillColor.r,
-                fireballDiaFillColor.g,
-                fireballDiaFillColor.b,
-                fireballDiaFillTrans
-              ],
-              "outline": {
-                "color": [fireballDiaOutlineColor.r,
-                  fireballDiaOutlineColor.g,
-                  fireballDiaOutlineColor.b,
-                  fireballDiaOutlineTrans
-                ],
-                "width": 1,
-                "type": "esriSLS",
-                "style": updatedSettings.fireballDiaOutlineColor.type
-              },
-              "type": "esriSFS",
-              "style": updatedSettings.fireballDiaFillColor.type
-            }
-          }, {
-            "value": this.nls.lpgSafeDistanceLable,
-            "symbol": {
-              "color": [safeDistanceFillColor.r, safeDistanceFillColor.g,
-                safeDistanceFillColor.b, safeDistanceFillTrans
-              ],
-              "outline": {
-                "color": [safeDistanceOutlineColor.r,
-                  safeDistanceOutlineColor.g,
-                  safeDistanceOutlineColor.b,
-                  safeDistanceOutlineTrans
-                ],
-                "width": 1,
-                "type": "esriSLS",
-                "style": updatedSettings.safeDistanceOutlineColor.type
-              },
-              "type": "esriSFS",
-              "style": updatedSettings.safeDistanceFillColor.type
-            }
-          }]
+          "uniqueValueInfos": uniqueValueInfos
         };
         // create a renderer for the threat analysis layer to override default symbology
-        this._renderer = new UniqueValueRenderer(uvrJson);
-        this.ThreatArea.setRenderer(this._renderer);
-        //refresh the layer to apply the settings
-        this.ThreatArea.refresh();
+        var renderer = new UniqueValueRenderer(uvrJson);
+        if (this.threatsGraphicsLayersObj.hasOwnProperty(updatedSettings.threatName)) {
+          var targetGL = this.threatsGraphicsLayersObj[updatedSettings.threatName];
+          targetGL.setRenderer(renderer);
+          //refresh the layer to apply the settings
+          targetGL.refresh();
+        }
       },
 
       /**
@@ -1220,17 +1058,29 @@ define([
        * Handle the create zones button being clicked
        **/
       _threatCreateButtonClicked: function () {
+        var deferredArray = [], defArr = [];
         if (!domClass.contains(this.threatCreateButton, 'jimu-state-disabled')) {
-          var threatCatagory = this.threatCatagorySelect.get("value");
           //show loading indicator and project the current geometry
           this.loading.show();
-          this.getProjectedGeometry(this._currentGeometry, new SpatialReference(102100)).then(
-            lang.hitch(this, function (projectedGeometry) {
-              //hide loading indicator and create threat areas using projected geometry
-              this.loading.hide();
-              this._createThreatAreas(
-                projectedGeometry, this._selectedThreat, this._selectedUnitType, threatCatagory);
+          array.forEach(this._currentGeometry, lang.hitch(this, function (inputGeometry) {
+            deferredArray.push(this.getProjectedGeometry(inputGeometry, new SpatialReference(102100)));
+          }));
+          all(deferredArray).then(lang.hitch(this, function (projectedGeometries) {
+            array.forEach(projectedGeometries, lang.hitch(this, function (projectedGeometry) {
+              defArr.push(this._createThreatAreas(
+                projectedGeometry, this._selectedThreat, this._selectedUnitType));
             }));
+            all(defArr).then(lang.hitch(this, function () {
+              //After all threat areas are created
+              this._showPanel("threatResultsPage");
+              this._showOrHideLayerCountHint();
+              if (this.isOnScreen) {
+                this.resize();
+              }
+              this.selectFeaturesTool.reset();
+              this.loading.hide();
+            }));
+          }));
         }
       },
 
@@ -1247,7 +1097,7 @@ define([
           this.geometryService.project([geometry], outSR, function (projectedGeometries) {
             result = projectedGeometries[0];
             deferred.resolve(result);
-          }, function(){
+          }, function () {
             deferred.resolve(null);
           });
         }
@@ -1258,10 +1108,12 @@ define([
        * Creates the threat areas based on geometry,
        * mandatory, and safe distances
        */
-      _createThreatAreas: function (geom, selectedThreat, unitType, threatCatagory) {
+      _createThreatAreas: function (geom, selectedThreat, unitType) {
+        var unionFeatures;
+        var deferred = new Deferred();
         if (geom && selectedThreat) {
           var features = [],
-            infoTemplate = null;
+            infoTemplate = null, geoms;
           var unitMeasure = (unitType.toLowerCase() === "feet") ? this.nls.feetLabel : this.nls.metersLabel;
 
           //get the threat location
@@ -1270,97 +1122,45 @@ define([
 
           //set geodesic unit measurement number
           var geodesicNum = (unitType.toLowerCase() === "feet") ? 9002 : 9001;
-          var convertedLength = (unitType.toLowerCase() === "feet") ? selectedThreat.mandatoryDistance :
-            this._convertToMeters(selectedThreat.mandatoryDistance, false);
-          // draw the mandatory evacuation zone
-          var mandatoryGraphic = new Graphic(GeometryEngine.geodesicBuffer(threatLocation,
-            convertedLength, geodesicNum));
-          if (threatCatagory === "chemicalThreatCatogory") {
-            mandatoryGraphic.setAttributes({
-              "zone_type": this.nls.mandatoryLabel,
-              "mandatory_dist": convertedLength,
-              "threat_type": selectedThreat.threatType,
-              "safe_dist": 0.0,
-              "lpg_fireball_dia": 0.0,
-              "lpg_safe_dist": 0.0,
+
+          array.forEach(this._selectedThreat.zones, lang.hitch(this, function (zone, i) {
+            var convertedLength = (unitType.toLowerCase() === "feet") ? this._formatNumber(zone.distance) :
+              this._convertToMeters(zone.distance, true);
+            convertedLength = dojoNumber.parse(convertedLength, {
+              places: 2
+            });
+            var zoneGraphic = (GeometryEngine.geodesicBuffer(threatLocation,
+              convertedLength, geodesicNum));
+            //Cut the second zone from the first zone geometry to create a donut
+            if (features.length === 1) {
+              geoms = GeometryEngine.difference(zoneGraphic, features[i - 1].geometry);
+              zoneGraphic = geoms ? geoms : zoneGraphic;
+            }
+            //If zones are more than 2 then Cut the current zone from union all previous zone geometry
+            //to create a donut
+            if (features.length > 1) {
+              unionFeatures = GeometryEngine.union(array.map(features, function (f) {
+                return f.geometry;
+              }));
+              geoms = GeometryEngine.difference(zoneGraphic, unionFeatures);
+              zoneGraphic = geoms ? geoms : zoneGraphic;
+            }
+            zoneGraphic = new Graphic(zoneGraphic);
+            zoneGraphic.setAttributes({
+              "zone_type": zone.name,
+              "distance": convertedLength,
+              "threat_type": selectedThreat.threatName,
               "units": unitMeasure
             });
             infoTemplate = new InfoTemplate();
             infoTemplate.setTitle(this.nls._widgetLabel);
             infoTemplate.setContent(
               "<b>" + this.nls.threatType + ":</b> ${threat_type}<br />" +
-              "<b>" + this.nls.mandatoryLabel + ":</b> ${mandatory_dist:NumberFormat(places:2)} " +
+              "<b>" + zone.name + ":</b> ${distance:NumberFormat(places:2)} " +
               unitMeasure + "<br />"
             );
-          } else {
-            mandatoryGraphic.setAttributes({
-              "zone_type": this.nls.fireBallDiameterLable,
-              "lpg_fireball_dia": convertedLength,
-              "threat_type": selectedThreat.threatType,
-              "lpg_safe_dist": 0.0,
-              "mandatory_dist": 0.0,
-              "safe_dist": 0.0,
-              "units": unitMeasure
-            });
-            infoTemplate = new InfoTemplate();
-            infoTemplate.setTitle(this.nls._widgetLabel);
-            infoTemplate.setContent(
-              "<b>" + this.nls.threatType + ":</b> ${threat_type}<br />" +
-              "<b>" + this.nls.fireBallDiameterLable + ":</b> ${lpg_fireball_dia:NumberFormat(places:2)} " +
-              unitMeasure + "<br />"
-            );
-          }
-
-          mandatoryGraphic.setInfoTemplate(infoTemplate);
-          features.push(mandatoryGraphic);
-
-          //Create the safe evacuation zone geometry
-          convertedLength = (unitType.toLowerCase() === "feet") ? selectedThreat.safeDistance :
-            this._convertToMeters(selectedThreat.safeDistance, false);
-          var safeGeom = GeometryEngine.geodesicBuffer(threatLocation, convertedLength, geodesicNum);
-          //Cut the mandatory distance zone from the safe evacuation geometry to create a donut
-          var geoms = GeometryEngine.difference(safeGeom, mandatoryGraphic.geometry);
-
-          // draw the safe evacutation zone
-          var safeGraphic = new Graphic(geoms ? geoms : safeGeom);
-          if (threatCatagory === "chemicalThreatCatogory") {
-            safeGraphic.setAttributes({
-              "zone_type": this.nls.safeLabel,
-              "mandatory_dist": 0.0,
-              "safe_dist": convertedLength,
-              "threat_type": selectedThreat.threatType,
-              "lpg_fireball_dia": 0.0,
-              "lpg_safe_dist": 0.0,
-              "units": unitMeasure
-            });
-            infoTemplate = new InfoTemplate();
-            infoTemplate.setTitle(this.nls._widgetLabel);
-            infoTemplate.setContent(
-              "<b>" + this.nls.threatType + ":</b> ${threat_type}<br />" +
-              "<b>" + this.nls.safeLabel + ":</b> ${safe_dist:NumberFormat(places:2)} " +
-              unitMeasure + "<br />"
-            );
-          } else {
-            safeGraphic.setAttributes({
-              "zone_type": this.nls.lpgSafeDistanceLable,
-              "lpg_fireball_dia": 0.0,
-              "lpg_safe_dist": convertedLength,
-              "threat_type": selectedThreat.threatType,
-              "mandatory_dist": 0.0,
-              "safe_dist": 0.0,
-              "units": unitMeasure
-            });
-            infoTemplate = new InfoTemplate();
-            infoTemplate.setTitle(this.nls._widgetLabel);
-            infoTemplate.setContent(
-              "<b>" + this.nls.threatType + ":</b> ${threat_type}<br />" +
-              "<b>" + this.nls.lpgSafeDistanceLable + ":</b> ${lpg_safe_dist:NumberFormat(places:2)} " +
-              unitMeasure + "<br />"
-            );
-          }
-
-          safeGraphic.setInfoTemplate(infoTemplate);
-          features.push(safeGraphic);
+            features.push(zoneGraphic);
+          }));
           //project all feature's geometry to map spatial reference
           var deferredArray = [];
           this.loading.show();
@@ -1379,18 +1179,22 @@ define([
               }
             }));
             if (projectedThreatAreas && projectedThreatAreas.length > 0) {
-              this.ThreatArea.applyEdits(projectedThreatAreas, null, null);
-              this.map.setExtent(
-                this.ThreatArea.graphics[this.ThreatArea.graphics.length - 1].geometry.getExtent().expand(2));
-              this._showPanel("threatResultsPage");
-              if (this.isOnScreen) {
-                this.resize();
+              if (this.threatsGraphicsLayersObj.hasOwnProperty(this._selectedThreat.threatName)) {
+                var targetGL = this.threatsGraphicsLayersObj[this._selectedThreat.threatName];
+                targetGL.applyEdits(projectedThreatAreas, null, null, lang.hitch(this,
+                  function () {
+                    this.map.setExtent(
+                      targetGL.graphics[targetGL.graphics.length - 1].geometry.getExtent().expand(2));
+                    deferred.resolve(null);
+                  }),
+                  function () {
+                    deferred.resolve(null);
+                  });
               }
-              this.selectFeaturesTool.reset();
             }
-            this.loading.hide();
           }));
         }
+        return deferred.promise;
       },
 
       /**
@@ -1430,7 +1234,8 @@ define([
        */
       _onDrawEnd: function (graphic, geotype) {
         this.drawBox.clear();
-        this._currentGeometry = graphic.geometry;
+        this._currentGeometry = [];
+        this._currentGeometry.push(graphic.geometry);
         var symbol = null;
         if (geotype === "POINT") {
           symbol = this._pointSymbol;
@@ -1444,7 +1249,7 @@ define([
           this._threatLocation.add(new Graphic(graphic.geometry, symbol, null, null));
         }
 
-        if (this._selectedThreat && this._currentGeometry) {
+        if (this._selectedThreat && this._currentGeometry.length > 0) {
           this._toggleCreateZoneButton(true);
         }
         focusUtils.focus(this.threatType.domNode);
@@ -1466,23 +1271,16 @@ define([
       /**
        * Set the value for mandatory and safe distances controls
        */
-      _setDistanceInputControls: function (params, unitType) {
-        if (params && params.hasOwnProperty('mandatoryDistance') && params.hasOwnProperty('safeDistance')) {
-
-          var convertedLength = (unitType.toLowerCase() === "meters") ?
-            this._convertToMeters(params.mandatoryDistance, true) : this._formatNumber(params.mandatoryDistance);
-          this.mandatoryDist.set('value', dojoString.substitute("${mandatoryDistance} ${unitType}", {
-            mandatoryDistance: convertedLength,
-            unitType: (unitType.toLowerCase() === "meters") ? this.nls.metersLabel : this.nls.feetLabel
-          }));
-
-          convertedLength = (unitType.toLowerCase() === "meters") ?
-            this._convertToMeters(params.safeDistance, true) : this._formatNumber(params.safeDistance);
-          this.safeDist.set('value', dojoString.substitute("${safeDistance} ${unitType}", {
-            safeDistance: convertedLength,
-            unitType: (unitType.toLowerCase() === "meters") ? this.nls.metersLabel : this.nls.feetLabel
-          }));
-        }
+      _updateThreatZoneTable: function (unitType) {
+        var rowData = {};
+        var trs = this._threatZonesTable.getRows();
+        array.forEach(trs, lang.hitch(this, function (tr) {
+          rowData.distance = (unitType.toLowerCase() === "meters") ? this._convertToMeters(tr.distance, true) :
+            this._convertToFeet(tr.distance, true);
+          tr.distance = (unitType.toLowerCase() === "meters") ? this._convertToMeters(tr.distance, false) :
+            this._convertToFeet(tr.distance, false);
+          this._threatZonesTable.editRow(tr, rowData);
+        }));
       },
 
       /**
@@ -1654,7 +1452,9 @@ define([
         if (this._currentOpenPanel === "threatSettingsPage") {
           jimuUtils.initFirstFocusNode(this.domNode, this.threatSettingsPanelBackButton);
           focusUtils.focus(this.threatSettingsPanelBackButton);
-          this._threatSettingsInstance._setLastFocusNode();
+          setTimeout(lang.hitch(this, function () {
+            this._threatSettingsInstance._setLastFocusNode();
+          }), 100);
         }
         if (this._currentOpenPanel === "threatMainPage") {
           // set First and last Focus Node
@@ -1672,20 +1472,14 @@ define([
       },
 
       /**
-       * This function is used to convert mandatory and safe distance to feet
+       * This function is used to convert distances to feet
        */
-      _convertDistanceMetersToFeet: function (data, isChemicalThreat) {
+      _convertDistanceMetersToFeet: function (data) {
         var threatData = [];
         array.forEach(data, lang.hitch(this, function (threatInfo) {
-          if (threatInfo.Unit && threatInfo.Unit.toLowerCase() === "meters") {
-            if (isChemicalThreat) {
-              threatInfo.Bldg_Dist = this._convertToFeet(threatInfo.Bldg_Dist);
-              threatInfo.Outdoor_Dist = this._convertToFeet(threatInfo.Outdoor_Dist);
-            } else {
-              threatInfo.Fireball_Dia = this._convertToFeet(threatInfo.Fireball_Dia);
-              threatInfo.Safe_Dist = this._convertToFeet(threatInfo.Safe_Dist);
-            }
-          }
+          array.forEach(threatInfo.zones, lang.hitch(this, function (zone) {
+            zone.distance = this._convertToFeet(zone.distance, false);
+          }));
           threatData.push(threatInfo);
         }));
         return threatData;
@@ -1694,13 +1488,22 @@ define([
       /**
        * This function is used to listen add and remove layer evt of map
        */
-      _onLayerInfosChange: function () {
+      _onLayerInfosChange: function (layerInfo, changedType) {
+        var layerName, layerSelectValue;
         this._layerList = "";
         //Retrieve all layers from webmap
         this._layerList = this._getLayers();
 
+        layerSelectValue = this.layerSelect.value;
+        if (changedType === "removed") {
+          //if selected layer is removed from the map then set layer select to blank
+          layerName = layerInfo.title ? layerInfo.title : layerInfo.name;
+          if (layerName === this.layerSelect.value) {
+            layerSelectValue = "";
+          }
+        }
         // populate the layer list
-        this._populateSelectList(this.layerSelect, this._layerList, '', true);
+        this._populateSelectList(this.layerSelect, this._layerList, layerSelectValue, true);
       },
 
       /**
@@ -1718,7 +1521,7 @@ define([
             }
           }
         }
-        return layerList;
+        return layerList.length > 0 ? layerList.reverse() : layerList;
       },
 
       /**
@@ -1735,6 +1538,214 @@ define([
           }
         }));
         return selectedLayerInfo;
+      },
+
+      _initThreatTypeTable: function () {
+        var fields = [{
+          name: 'zoneDescription',
+          title: this.nls.zoneDescriptionColLabel,
+          type: 'text',
+          width: "65%"
+        },
+        {
+          name: 'distance',
+          title: this.nls.distanceColLabel,
+          type: 'text',
+          width: "35%"
+        }];
+        var args = {
+          fields: fields,
+          selectable: false
+        };
+        this._threatZonesTable = new Table(args);
+        this._threatZonesTable.placeAt(this.threatZoneTableNode);
+        this._threatZonesTable.startup();
+      },
+
+      /**
+       * This function is used to add row of zone info into zone infos table
+       */
+      _addRowToZoneTable: function (zone) {
+        var result, tr;
+        var zoneDistance = zone.distance;
+        var row = {
+          zoneDescription: this._getZoneNameNls(zone.name),
+          distance: (this._selectedUnitType.toLowerCase() === "meters") ? this._convertToMeters(zoneDistance, true) :
+            this._formatNumber(zone.distance)
+        };
+        result = this._threatZonesTable.addRow(row);
+        if (result.success && result.tr) {
+          tr = result.tr;
+          tr.zoneDescription = zone.name;
+          tr.distance = (this._selectedUnitType.toLowerCase() === "meters") ?
+            this._convertToMeters(zoneDistance, false) : zone.distance;
+        }
+      },
+
+      /**
+       * This function is used to get selected threat info
+       */
+      _populateThreatZoneTableRows: function (selectedThreatType) {
+        array.some(this._threatData, lang.hitch(this, function (threat) {
+          if (selectedThreatType === threat.threatName) {
+            array.forEach(threat.zones, lang.hitch(this, function (zone) {
+              this._addRowToZoneTable(zone);
+            }));
+          }
+        }));
+      },
+
+      /**
+       * This function is used to get selected threat info
+       */
+      _getSelectedThreatInfo: function (selectedThreatType) {
+        var selectedThreatInfo = {};
+        array.some(this._threatData, lang.hitch(this, function (threat) {
+          if (selectedThreatType === threat.threatName) {
+            selectedThreatInfo.threatName = threat.threatName;
+            selectedThreatInfo.zones = threat.zones;
+          }
+        }));
+        return selectedThreatInfo;
+      },
+
+      /**
+       * This function is used to calculate max-height of zone table in main screen
+       */
+      _resetThreatZoneTableMaxHeight: function () {
+        // node 1
+        var threatMainPageNodeHeight;
+        var threatMainPageNode = query(".esriCTThreatMainPageNode", this.mainNode);
+        if (threatMainPageNode && threatMainPageNode.length > 0) {
+          threatMainPageNode = threatMainPageNode[0];
+          threatMainPageNodeHeight = domStyle.getComputedStyle(threatMainPageNode).height;
+          threatMainPageNodeHeight = parseFloat(threatMainPageNodeHeight);
+        }
+
+        // node 2
+        var containerNodes = query(".esriCTContainerNode", this.threatMainPageNode);
+        //extra margin(10px) + header(30px) height = 40
+        var height = 40;
+        if (containerNodes && containerNodes.length > 0) {
+          array.forEach(containerNodes, lang.hitch(this, function (node) {
+            if (node.style.display !== "none") {
+              var NodeHeight = domStyle.getComputedStyle(node).height;
+              NodeHeight = parseFloat(NodeHeight);
+              height = height + NodeHeight;
+            }
+          }));
+        }
+
+        // reset height
+        var threatZoneInfoTableHeight = threatMainPageNodeHeight - height;
+        var threatZoneTableNode = query(".jimu-simple-table", this.threatZoneTableNode);
+        if (threatZoneTableNode.length > 0) {
+          //at least two rows should be displayed
+          if (threatZoneInfoTableHeight < 97) {
+            threatZoneInfoTableHeight = 97;
+          }
+          domStyle.set(threatZoneTableNode[0], "maxHeight", threatZoneInfoTableHeight + "px");
+        }
+      },
+
+      /**
+       * This function is used to create layerDefinition for each threat type
+       */
+      _initGLForThreats: function () {
+        array.forEach(this._threatData, lang.hitch(this, function (threat, i) {
+          var featureCollection = {
+            "layerDefinition": {
+              "name": threat.threatName,
+              "geometryType": "esriGeometryPolygon",
+              "objectIdField": "ObjectID",
+              "fields": [{
+                "name": "ObjectID",
+                "alias": "ObjectID",
+                "type": "esriFieldTypeOID"
+              }, {
+                "name": "threat_type",
+                "alias": this.nls.threatType,
+                "type": "esriFieldTypeString"
+              }, {
+                "name": "zone_type",
+                "alias": this.nls.zoneTypeLabel,
+                "type": "esriFieldTypeString"
+              }, {
+                "name": "distance",
+                "alias": this.nls.distanceColLabel,
+                "type": "esriFieldTypeDouble"
+              }, {
+                "name": "units",
+                "alias": this.nls.unitsLabel,
+                "type": "esriFieldTypeString"
+              }],
+              "extent": this.map.extent
+            }
+          };
+          var gLId = this.nls.threatGraphicLayer + "_" + this.id + "_" + i;
+          var graphicLayer = new FeatureLayer(featureCollection, {
+            id: gLId,
+            outFields: ["*"]
+          });
+          this.threatsGraphicsLayersObj[threat.threatName] = graphicLayer;
+        }));
+      },
+
+      /**
+       * This function is used to sort zones in ascending order of distance
+       */
+      _sortZones: function (zonesArray) {
+        var sortedZonesArr = zonesArray.sort(function (a, b) {
+          return a.distance - b.distance;
+        });
+        return sortedZonesArr;
+      },
+
+      /**
+       * This function is used to threat zones array in asc order
+       */
+      _sortZonesInAscOrder: function () {
+        array.forEach(this._threatData, lang.hitch(this, function (threat, i) {
+          this._threatData[i].zones = this._sortZones(threat.zones);
+        }));
+      },
+
+      /**
+       * This function is used to display  or hide hint msg
+       */
+      _showOrHideLayerCountHint: function () {
+        //if one or more layer has graphics then display hint msg
+        // to update the user how many layer will be created in feature server
+        if (this._getLayersWithGraphics().length > 0 && this.publishNewLayer.checked) {
+          this.hintNode.innerHTML = string.substitute(this.nls.layerCountHint, {
+            layerCount: this._getLayersWithGraphics().length
+          });
+          domClass.remove(this.hintNode, 'controlGroupHidden');
+        } else {
+          //hide display msg
+          domClass.add(this.hintNode, 'controlGroupHidden');
+        }
+      },
+
+      /**
+       * Return NLS label representation of zone name
+       */
+      _getZoneNameNls: function (zoneName) {
+        var self = this;
+        var zoneLabels = {
+          "Mandatory Evacuation Distance": "mandatoryLabel",
+          "Safe Evacuation Distance": "safeLabel",
+          "Fireball Diameter": "fireBallDiameterLable",
+          "Safe Distance": "lpgSafeDistanceLable"
+        };
+
+        var getZoneLabel = function (zoneName) {
+          if (zoneLabels[zoneName] !== undefined) {
+            return self.nls[zoneLabels[zoneName]];
+          }
+          return zoneName;
+        };
+        return getZoneLabel(zoneName);
       }
     });
   });

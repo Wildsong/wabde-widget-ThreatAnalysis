@@ -115,9 +115,7 @@ define([
       },
 
       execute: function () {
-        var featureLayer,
-          unionFeatures,
-          isFeatureCollection = false;
+        var featureLayer, isFeatureCollection = false;
         if (this.currentLayerInfo) {
           if (this.currentLayerInfo.url !== null) {
             featureLayer = new FeatureLayer(this.currentLayerInfo.url, {
@@ -161,12 +159,10 @@ define([
               }
             }, this);
             this.drawBox.clear();
-
-            unionFeatures = geometryEngine.union(array.map(this.bufferLayer.graphics, function (graphic) {
-              return graphic.geometry;
-            }));
             this.emit("selection-complete", {
-              geometry: unionFeatures
+              geometry: array.map(this.bufferLayer.graphics, function (graphic) {
+                return graphic.geometry;
+              })
             });
           } else {
             query.geometry = queryGeom;
@@ -189,12 +185,10 @@ define([
                 this.bufferLayer.add(new Graphic(feature.geometry, sym));
               }, this);
               this.drawBox.clear();
-
-              unionFeatures = geometryEngine.union(array.map(result.features, function (feature) {
-                return feature.geometry;
-              }));
               this.emit("selection-complete", {
-                geometry: unionFeatures
+                geometry: array.map(result.features, function (feature) {
+                  return feature.geometry;
+                })
               });
             }));
           }

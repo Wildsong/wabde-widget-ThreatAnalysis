@@ -117,7 +117,9 @@ define([
       },
       startup: function () {
         // code for accessibility: aria-label with heading text
-        this._setAriaLabelForEditorNodes();
+        setTimeout(lang.hitch(this, function () {
+          this._setAriaLabelForEditorNodes();
+        }), 100);
         this.own(on(this.slider, 'change', lang.hitch(this, function (val) {
           if (!isNaN(val)) {
             if (false === this._isSameVal()) {

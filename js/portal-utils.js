@@ -22,7 +22,8 @@ define([
   'esri/arcgis/Portal',
   'esri/layers/FeatureLayer',
   'jimu/LayerInfos/LayerInfos',
-  'jimu/utils'
+  'jimu/utils',
+  'dojo/_base/array'
 ], function (
   esriRequest,
   JSON,
@@ -31,7 +32,8 @@ define([
   esriPortal,
   FeatureLayer,
   jimuLayerInfos,
-  jimuUtils
+  jimuUtils,
+  array
 ) {
   var portalUtil = {};
 
@@ -44,7 +46,6 @@ define([
       var token = portalUser.credential.token;
       var orgId = portalUser.orgId;
       var userName = portalUser.username;
-
       // Check the user is not just a publisher
       if (portalUser.role === "org_user") {
         params.publishMessage.innerHTML = jimuUtils.sanitizeHTML(params.nls.createService.format(params.nls.userRole));
@@ -60,116 +61,124 @@ define([
           "sharing/content/users/" + userName + "/createService";
         this.isNameAvailable(checkServiceNameUrl, token,
           params.layerName).then(lang.hitch(this, function (response0) {
-          if (response0.available) {
-            //set the widget to busy
-            topic.publish("setBusyIndicator", true);
-            //create the service
-            this.createFeatureService(createServiceUrl, token,
-              this.getFeatureServiceParams(params.layerName,
-                params.map)).then(lang.hitch(this, function (response1) {
-              if (response1.success) {
-                var addToDefinitionUrl = response1.serviceurl.replace(
-                  new RegExp('rest', 'g'), "rest/admin") + "/addToDefinition";
-                this.addDefinitionToService(addToDefinitionUrl, token,
-                  this.getLayerParams(params.layerName, params.map,
-                    params.renderer, params.nls)).then(lang.hitch(this,
-                  function (response2) {
-                    if (response2.success) {
-                      //Push features to new layer
-                      var newFeatureLayer =
-                        new FeatureLayer(response1.serviceurl + "/0?token=" + token, {
-                          id: params.layerName,
-                          outFields: ["*"]
-                        });
-                      newFeatureLayer._wabProperties = {
-                        itemLayerInfo: {
-                          portalUrl: params.appConfig.portalUrl,
-                          itemId: response1.itemId
-                        }
-                      };
-                      // Add layer to map
-                      params.map.addLayer(newFeatureLayer);
-
-                      // must ensure the layer is loaded before we can access
-                      // it to turn on the labels if required
-                      var featureLayerInfo;
-                      if (newFeatureLayer.loaded) {
-                        featureLayerInfo =
-                          jimuLayerInfos.getInstanceSync().getLayerInfoById(params.layerName);
-                        featureLayerInfo.enablePopup();
-                      } else {
-                        newFeatureLayer.on("load", lang.hitch(this, function () {
-                          featureLayerInfo =
-                            jimuLayerInfos.getInstanceSync().getLayerInfoById(params.layerName);
-                          featureLayerInfo.enablePopup();
-                        }));
-                      }
-
-                      newFeatureLayer.applyEdits(params.graphics, null, null).then(
-                        lang.hitch(this, function () {
-                          topic.publish("clear");
-                        })).otherwise(lang.hitch(this, function () {
-                        topic.publish("clear");
+            if (response0.available) {
+              //set the widget to busy
+              topic.publish("setBusyIndicator", true);
+              //create the service
+              this.createFeatureService(createServiceUrl, token,
+                this.getFeatureServiceParams(params.layerName,
+                  params.map)).then(lang.hitch(this, function (response1) {
+                    if (response1.success) {
+                      var addToDefinitionUrl = response1.serviceurl.replace(
+                        new RegExp('rest', 'g'), "rest/admin") + "/addToDefinition";
+                      var layersInfo = [];
+                      array.forEach(params.layers, lang.hitch(this, function (layer, i) {
+                        var layerDef = portalUtil.getLayerParams(layer.name, params.map, layer.renderer, params.nls, i);
+                        layersInfo.push(layerDef);
                       }));
-
+                      var layerDefinition = { 'layers': layersInfo };
+                      this.addDefinitionToService(addToDefinitionUrl, token,
+                        layerDefinition).then(lang.hitch(this,
+                        function (response2) {
+                          if (response2 && response2.success) {
+                            array.forEach(response2.layers, lang.hitch(this, function (response3, i) {
+                              if (response3) {
+                                //Push features to new layer  "/0?token="
+                                var newFeatureLayer =
+                                  new FeatureLayer(response1.serviceurl + "/" + "" + i + "" + "?token=" + token, {
+                                    id: response3.name,
+                                    outFields: ["*"]
+                                  });
+                                newFeatureLayer._wabProperties = {
+                                  itemLayerInfo: {
+                                    portalUrl: params.appConfig.portalUrl,
+                                    itemId: response1.itemId
+                                  }
+                                };
+                                // Add layer to map
+                                params.map.addLayer(newFeatureLayer);
+                                // must ensure the layer is loaded before we can access
+                                // it to turn on the labels if required
+                                var featureLayerInfo;
+                                if (newFeatureLayer.loaded) {
+                                  featureLayerInfo =
+                                    jimuLayerInfos.getInstanceSync().getLayerInfoById(response3.name);
+                                  featureLayerInfo.enablePopup();
+                                } else {
+                                  newFeatureLayer.on("load", lang.hitch(this, function () {
+                                    featureLayerInfo =
+                                      jimuLayerInfos.getInstanceSync().getLayerInfoById(response3.name);
+                                    featureLayerInfo.enablePopup();
+                                  }));
+                                }
+                                newFeatureLayer.applyEdits(params.layers[i].graphics, null, null).then(
+                                  lang.hitch(this, function () {
+                                    topic.publish("clear");
+                                  })).otherwise(lang.hitch(this, function () {
+                                    topic.publish("clear");
+                                  }));
+                              }
+                            }));
+                            topic.publish("setBusyIndicator", false);
+                            var newURL = '<br /><a role="link" tabindex="0" aria-label="' +
+                              params.nls.successfullyPublished + '" href="' + params.appConfig.portalUrl +
+                              "home/item.html?id=" + response1.itemId + '" target="_blank">' +
+                              params.nls.manageWebLayerText + '</a>';
+                            params.publishMessage.innerHTML = params.nls.successfullyPublished + newURL;
+                            topic.publish("setLastFocusNode", true);
+                          }
+                        }), lang.hitch(this, function (err2) {
+                        // Error in adding service definition
+                        topic.publish("setBusyIndicator", false);
+                        params.publishMessage.innerHTML =
+                          jimuUtils.sanitizeHTML(params.nls.addToDefinition.format(err2.message));
+                        topic.publish("setLastFocusNode", false);
+                      }));
+                    } else {
+                      // Unable to create feature service
                       topic.publish("setBusyIndicator", false);
-                      var newURL = '<br /><a role="link" tabindex="0" aria-label="' +
-                        params.nls.successfullyPublished + '" href="' + params.appConfig.portalUrl +
-                        "home/item.html?id=" + response1.itemId + '" target="_blank">' +
-                        params.nls.manageWebLayerText + '</a>';
-                      params.publishMessage.innerHTML = params.nls.successfullyPublished + newURL;
-                      topic.publish("setLastFocusNode", true);
+                      params.publishMessage.innerHTML =
+                        jimuUtils.sanitizeHTML(params.nls.unableToCreate.format(params.layerName));
+                      topic.publish("setLastFocusNode", false);
                     }
-                  }), lang.hitch(this, function (err2) {
-                  // Error in adding service definition
-                  topic.publish("setBusyIndicator", false);
-                  params.publishMessage.innerHTML =
-                    jimuUtils.sanitizeHTML(params.nls.addToDefinition.format(err2.message));
-                  topic.publish("setLastFocusNode", false);
-                }));
-              } else {
-                // Unable to create feature service
-                topic.publish("setBusyIndicator", false);
-                params.publishMessage.innerHTML =
-                  jimuUtils.sanitizeHTML(params.nls.unableToCreate.format(params.layerName));
-                topic.publish("setLastFocusNode", false);
-              }
-            }), lang.hitch(this, function (err1) {
-              // Error in calling create feature service REST call
+                  }), lang.hitch(this, function (err1) {
+                    // Error in calling create feature service REST call
+                    topic.publish("setBusyIndicator", false);
+                    params.publishMessage.innerHTML =
+                      jimuUtils.sanitizeHTML(params.nls.createService.format(err1.message));
+                    topic.publish("setLastFocusNode", false);
+                  }));
+            } else {
+              // Supplied layer name exists. User needs to supply another.
               topic.publish("setBusyIndicator", false);
-              params.publishMessage.innerHTML =
-                jimuUtils.sanitizeHTML(params.nls.createService.format(err1.message));
-              topic.publish("setLastFocusNode", false);
-            }));
-          } else {
-            // Supplied layer name exists. User needs to supply another.
-            topic.publish("setBusyIndicator", false);
-            params.publishMessage.innerHTML = params.nls.layerNameExists;
-          }
-          topic.publish("setLastFocusNode", false);
-        }));
+              params.publishMessage.innerHTML = params.nls.layerNameExists;
+            }
+            topic.publish("setLastFocusNode", false);
+          }));
       } else {
         // We have an operational layer from the webmap with a valid URL
         // Create the layer from the URL parameter
-        var newFeatureLayer =
-          new FeatureLayer(params.url + "?token=" + token, {
-            id: params.layerName,
-            outFields: ["*"]
-          });
-        newFeatureLayer._wabProperties = {
-          itemLayerInfo: {
-            portalUrl: params.appConfig.portalUrl,
-            itemId: params.itemId
-          }
-        };
+        var newFeatureLayer;
+        array.forEach(params.layers, lang.hitch(this, function (layer, i) {
+          newFeatureLayer =
+            new FeatureLayer(params.url + "?token=" + token, {
+              id: params.layerName + "" + i,
+              outFields: ["*"]
+            });
+          newFeatureLayer._wabProperties = {
+            itemLayerInfo: {
+              portalUrl: params.appConfig.portalUrl,
+              itemId: params.itemId
+            }
+          };
 
-        newFeatureLayer.applyEdits(params.graphics, null, null).then(
-          lang.hitch(this, function () {
-            topic.publish("clear");
-          })).otherwise(lang.hitch(this, function () {
-          topic.publish("clear");
+          newFeatureLayer.applyEdits(layer.graphics, null, null).then(
+            lang.hitch(this, function () {
+              topic.publish("clear");
+            })).otherwise(lang.hitch(this, function () {
+              topic.publish("clear");
+            }));
         }));
-
         topic.publish("setBusyIndicator", false);
         var newURL = '<br /><a role="link" tabindex="0" aria-label="' +
           params.nls.successfullyAppended + '" href="' + params.appConfig.portalUrl +
@@ -207,177 +216,142 @@ define([
     };
   };
 
-  portalUtil.getLayerParams = function (layerName, map, renderer, nls) {
+  portalUtil.getLayerParams = function (layerName, map, renderer, nls, id) {
     return {
-      "layers": [{
-        "adminLayerInfo": {
-          "geometryField": {
-            "name": "Shape"
-          },
-          "xssTrustedFields": ""
+      "adminLayerInfo": {
+        "geometryField": {
+          "name": "Shape"
         },
-        "id": 0,
-        "name": layerName,
-        "type": "Feature Layer",
-        "displayField": "",
-        "description": "",
-        "tags": "ThreatAnalysis",
-        "copyrightText": "",
-        "defaultVisibility": true,
-        "ownershipBasedAccessControlForFeatures": {
-          "allowOthersToQuery": false,
-          "allowOthersToDelete": false,
-          "allowOthersToUpdate": false
-        },
-        "relationships": [],
-        "isDataVersioned": false,
-        "supportsCalculate": true,
-        "supportsAttachmentsByUploadId": true,
-        "supportsRollbackOnFailureParameter": true,
+        "xssTrustedFields": ""
+      },
+      "id": id,
+      "name": layerName,
+      "type": "Feature Layer",
+      "displayField": "",
+      "description": "",
+      "tags": "ThreatAnalysis",
+      "copyrightText": "",
+      "defaultVisibility": true,
+      "ownershipBasedAccessControlForFeatures": {
+        "allowOthersToQuery": false,
+        "allowOthersToDelete": false,
+        "allowOthersToUpdate": false
+      },
+      "relationships": [],
+      "isDataVersioned": false,
+      "supportsCalculate": true,
+      "supportsAttachmentsByUploadId": true,
+      "supportsRollbackOnFailureParameter": true,
+      "supportsStatistics": true,
+      "supportsAdvancedQueries": true,
+      "supportsValidateSql": true,
+      "supportsCoordinatesQuantization": true,
+      "supportsApplyEditsWithGlobalIds": true,
+      "advancedQueryCapabilities": {
+        "supportsPagination": true,
+        "supportsQueryWithDistance": true,
+        "supportsReturningQueryExtent": true,
         "supportsStatistics": true,
-        "supportsAdvancedQueries": true,
-        "supportsValidateSql": true,
-        "supportsCoordinatesQuantization": true,
-        "supportsApplyEditsWithGlobalIds": true,
-        "advancedQueryCapabilities": {
-          "supportsPagination": true,
-          "supportsQueryWithDistance": true,
-          "supportsReturningQueryExtent": true,
-          "supportsStatistics": true,
-          "supportsOrderBy": true,
-          "supportsDistinct": true,
-          "supportsQueryWithResultType": true,
-          "supportsSqlExpression": true,
-          "supportsReturningGeometryCentroid": true
-        },
-        "useStandardizedQueries": false,
-        "geometryType": "esriGeometryPolygon",
-        "minScale": 0,
-        "maxScale": 0,
-        "extent": map.extent,
-        "drawingInfo": {
-          "renderer": renderer.toJson(),
-          "transparency": 0
-        },
-        "allowGeometryUpdates": true,
-        "hasAttachments": false,
-        "htmlPopupType": "esriServerHTMLPopupTypeNone",
-        "hasM": false,
-        "hasZ": false,
-        "objectIdField": "OBJECTID",
-        "globalIdField": "",
-        "typeIdField": "",
-        "fields": [{
-            "name": "OBJECTID",
-            "type": "esriFieldTypeOID",
-            "actualType": "int",
-            "alias": "OBJECTID",
-            "sqlType": "sqlTypeOther",
-            "nullable": false,
-            "editable": false,
-            "domain": null,
-            "defaultValue": null
-          },
-          {
-            "name": "zone_type",
-            "type": "esriFieldTypeString",
-            "alias": nls.zoneTypeLabel,
-            "actualType": "nvarchar",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeNVarchar",
-            "length": 256
-          },
-          {
-            "name": "threat_type",
-            "type": "esriFieldTypeString",
-            "alias": nls.threatType,
-            "actualType": "nvarchar",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeNVarchar",
-            "length": 256
-          },
-          {
-            "name": "mandatory_dist",
-            "type": "esriFieldTypeDouble",
-            "alias": nls.mandatoryLabel,
-            "actualType": "float",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeFloat"
-          },
-          {
-            "name": "safe_dist",
-            "type": "esriFieldTypeDouble",
-            "alias": nls.safeLabel,
-            "actualType": "float",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeFloat"
-          },
-          {
-            "name": "lpg_fireball_dia",
-            "type": "esriFieldTypeDouble",
-            "alias": nls.fireBallDiameterFieldAlias,
-            "actualType": "float",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeFloat"
-          },
-          {
-            "name": "lpg_safe_dist",
-            "type": "esriFieldTypeDouble",
-            "alias": nls.lpgSafeDistanceFieldAlias,
-            "actualType": "float",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeFloat"
-          },
-          {
-            "name": "units",
-            "type": "esriFieldTypeString",
-            "alias": nls.unitsLabel,
-            "actualType": "nvarchar",
-            "nullable": true,
-            "editable": true,
-            "domain": null,
-            "defaultValue": null,
-            "sqlType": "sqlTypeNVarchar",
-            "length": 256
-          }
-        ],
-        "indexes": [],
-        "types": [],
-        "templates": [{
-          "name": "New Feature",
-          "description": "",
-          "drawingTool": "esriFeatureEditToolPolygon",
-          "prototype": {
-            "attributes": {}
-          }
-        }],
-        "supportedQueryFormats": "JSON",
-        "hasStaticData": false,
-        "maxRecordCount": 10000,
-        "standardMaxRecordCount": 4000,
-        "tileMaxRecordCount": 4000,
-        "maxRecordCountFactor": 1,
-        "exceedsLimitFactor": 1,
-        "capabilities": "Query,Editing,Create,Update,Delete"
-      }]
+        "supportsOrderBy": true,
+        "supportsDistinct": true,
+        "supportsQueryWithResultType": true,
+        "supportsSqlExpression": true,
+        "supportsReturningGeometryCentroid": true
+      },
+      "useStandardizedQueries": false,
+      "geometryType": "esriGeometryPolygon",
+      "minScale": 0,
+      "maxScale": 0,
+      "extent": map.extent,
+      "drawingInfo": {
+        "renderer": renderer.toJson(),
+        "transparency": 0
+      },
+      "allowGeometryUpdates": true,
+      "hasAttachments": false,
+      "htmlPopupType": "esriServerHTMLPopupTypeNone",
+      "hasM": false,
+      "hasZ": false,
+      "objectIdField": "OBJECTID",
+      "globalIdField": "",
+      "typeIdField": "",
+      "fields": [{
+        "name": "OBJECTID",
+        "type": "esriFieldTypeOID",
+        "actualType": "int",
+        "alias": "OBJECTID",
+        "sqlType": "sqlTypeOther",
+        "nullable": false,
+        "editable": false,
+        "domain": null,
+        "defaultValue": null
+      },
+      {
+        "name": "zone_type",
+        "type": "esriFieldTypeString",
+        "alias": nls.zoneTypeLabel,
+        "actualType": "nvarchar",
+        "nullable": true,
+        "editable": true,
+        "domain": null,
+        "defaultValue": null,
+        "sqlType": "sqlTypeNVarchar",
+        "length": 256
+      },
+      {
+        "name": "threat_type",
+        "type": "esriFieldTypeString",
+        "alias": nls.threatType,
+        "actualType": "nvarchar",
+        "nullable": true,
+        "editable": true,
+        "domain": null,
+        "defaultValue": null,
+        "sqlType": "sqlTypeNVarchar",
+        "length": 256
+      },
+      {
+        "name": "distance",
+        "type": "esriFieldTypeDouble",
+        "alias": nls.distanceColLabel,
+        "actualType": "float",
+        "nullable": true,
+        "editable": true,
+        "domain": null,
+        "defaultValue": null,
+        "sqlType": "sqlTypeFloat"
+      },
+      {
+        "name": "units",
+        "type": "esriFieldTypeString",
+        "alias": nls.unitsLabel,
+        "actualType": "nvarchar",
+        "nullable": true,
+        "editable": true,
+        "domain": null,
+        "defaultValue": null,
+        "sqlType": "sqlTypeNVarchar",
+        "length": 256
+      }
+      ],
+      "indexes": [],
+      "types": [],
+      "templates": [{
+        "name": "New Feature",
+        "description": "",
+        "drawingTool": "esriFeatureEditToolPolygon",
+        "prototype": {
+          "attributes": {}
+        }
+      }],
+      "supportedQueryFormats": "JSON",
+      "hasStaticData": false,
+      "maxRecordCount": 10000,
+      "standardMaxRecordCount": 4000,
+      "tileMaxRecordCount": 4000,
+      "maxRecordCountFactor": 1,
+      "exceedsLimitFactor": 1,
+      "capabilities": "Query,Editing,Create,Update,Delete"
     };
   };
 

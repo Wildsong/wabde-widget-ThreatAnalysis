@@ -5,7 +5,7 @@
           Threat Analysis Main Page Node
         ---------------------->
 
-    <div class="FullHeight" data-dojo-attach-point="threatMainPageNode">
+    <div class="FullHeight esriCTThreatMainPageNode" data-dojo-attach-point="threatMainPageNode">
       <div class="FullWidth NewHeader">
         <!-- Panel Title -->
         <div class="MainTitleDiv Ellipsis" title="${nls.threatAnalysisMainPageTitle}">
@@ -20,7 +20,7 @@
         <!-- Threat Analysis Point Form -->
         <div class="MainPageRow">
           <!-- Input Location -->
-          <div class="FullWidth SettingRow">
+          <div class="FullWidth SettingRow esriCTContainerNode">
             <div class="InputLabel Ellipsis" data-a11y-label-id="inputLocationLabel" style="width: 100%"
               title="${nls.inputLocation}">${nls.inputLocation}</div>
             <select data-dojo-type="jimu/dijit/formSelect" class="inputSelectStyle"
@@ -31,7 +31,7 @@
             </select>
           </div>
           <!-- Interactive Draw Tools -->
-          <div class="FullWidth SettingRow" data-dojo-attach-point="interActiveDiv">
+          <div class="FullWidth SettingRow esriCTContainerNode" data-dojo-attach-point="interActiveDiv">
             <div class="InputLabel Ellipsis" style="width: 100%" title="${nls.selectDrawModeLabel}"
               data-a11y-label-id="selectDrawModeLabel">${nls.selectDrawModeLabel}</div>
             <div data-dojo-attach-point="drawBox" data-dojo-type="jimu/dijit/DrawBox"
@@ -39,11 +39,11 @@
               style="margin-top:5px;" data-a11y-label-by="selectDrawModeLabel"></div>
           </div>
           <!-- Threat Analysis Coordinate Input -->
-          <div class="FullWidth SettingFirstRow" data-dojo-attach-point="coordInputDiv">
+          <div class="FullWidth SettingFirstRow esriCTContainerNode" data-dojo-attach-point="coordInputDiv">
             <div data-dojo-attach-point='threatAnalysisCoordContainer'></div>
           </div>
           <!-- Existing Features -->
-          <div class="FullWidth SettingRow" data-dojo-attach-point="existingFeatureDiv">
+          <div class="FullWidth SettingRow esriCTContainerNode" data-dojo-attach-point="existingFeatureDiv">
             <div class="InputLabel Ellipsis" style="width: 100%" title="${nls.selectFeatureLabel}"
               data-a11y-label-id="selectFeatureLabel">
               ${nls.selectFeatureLabel}</div>
@@ -53,17 +53,8 @@
               <div class="drawing-section" data-dojo-attach-point="drawingSection"></div>
             </div>
           </div>
-          <div class="FullWidth SettingRow">
-            <div class="InputLabel Ellipsis" style="width: 100%" title="${nls.threatTypeCatagoryLabel}">
-              ${nls.threatTypeCatagoryLabel}</div>
-            <div class="inputSelectStyle" data-dojo-attach-point="threatCatagorySelect"
-              data-dojo-type="dijit/form/Select">
-              <option value="chemicalThreatCatogory" selected="selected">${nls.chemicalThreatCatagoryLabel}</option>
-              <option value="lpgThreatCatogary">${nls.lpgThreatCatagoryLabel}</option>
-            </div>
-          </div>
           <!-- Threat Type Container -->
-          <div class="HalfWidthContainer">
+          <div class="HalfWidthContainer esriCTContainerNode">
             <div class="HalfWidthLeft SettingRow">
               <!-- Threat Type Input -->
               <div class="InputLabel Ellipsis" style="width: 100%" title="${nls.threatType}"
@@ -77,33 +68,17 @@
                 data-a11y-label-id="unitsLabel">${nls.unitsLabel}</div>
               <select class="SelectStyle" data-dojo-type="jimu/dijit/formSelect" data-dojo-attach-point="unitType"
                 tabindex="0" data-a11y-label-by="unitsLabel">
-                <option value="feet" selected>${nls.feetLabel}</option>
-                <option value="meters">${nls.metersLabel}</option>
+                <option value="feet">${nls.feet}</option>
+                <option value="meters">${nls.meters}</option>
               </select>
             </div>
           </div>
-          <!-- Evacuation Distances Container -->
-          <div class="HalfWidthContainer" data-dojo-attach-point="evacDistances">
-            <div class="HalfWidthLeft SettingRow">
-              <div class="InputLabel Ellipsis" data-dojo-attach-point="mandatoryLabel" title="${nls.mandatoryLabel}"
-                data-a11y-label-id="mandatoryLabel">
-                ${nls.mandatoryLabel}</div>
-              <input class="jimu-input textInput" style="width: 100%;background-color: #d8d8d882"
-                data-dojo-type="dijit/form/TextBox" data-dojo-props='readOnly:true'
-                data-dojo-attach-point="mandatoryDist" value="0" tabindex="0"
-                data-a11y-label-by="mandatoryLabel"></input>
-            </div>
-            <div class="HalfWidthRight SettingRow">
-              <div class="InputLabel Ellipsis" data-dojo-attach-point="safeLabel" title="${nls.safeLabel}"
-                data-a11y-label-id="safeLabel">
-                ${nls.safeLabel}</div>
-              <input class="jimu-input textInput" style="width: 100%;background-color: #d8d8d882"
-                data-dojo-type="dijit/form/TextBox" data-dojo-props='readOnly:true' data-dojo-attach-point="safeDist"
-                value="0" tabindex="0" data-a11y-label-by="safeLabel"></input>
-            </div>
+          <!-- Distances Container -->
+          <div class="FullWidth SettingRow">
+            <div data-dojo-attach-point="threatZoneTableNode"></div>
           </div>
           <!-- Create & Clear threatAnalysis Buttons -->
-          <div class="HalfWidthContainer">
+          <div class="HalfWidthContainer esriCTContainerNode">
             <div class="BtnContainer HalfWidthLeft">
               <div class='jimu-btn jimu-state-disabled' data-dojo-attach-point='threatCreateButton' tabindex="-1"
                 aria-label='${nls.createBtn}' role='button'>${nls.createBtn}
@@ -125,8 +100,8 @@
     <div class="Hidden FullHeight" data-dojo-attach-point="threatSettingsPageNode">
       <div class="FullWidth SettingHeader">
         <div>
-          <div class="BackButton Pointer" title="${nls.common.back}"
-            data-dojo-attach-point="threatSettingsPanelBackButton" tabindex="0" aria-label="${nls.common.back}"
+          <div class="BackButton Pointer" title="${nls.back}"
+            data-dojo-attach-point="threatSettingsPanelBackButton" tabindex="0" aria-label="${nls.back}"
             role="button">
             <div class="ItemLeftArrow">
             </div>
@@ -146,8 +121,8 @@
     <div class="Hidden FullHeight" data-dojo-attach-point="threatResultsPageNode">
       <div class="FullWidth SettingHeader">
         <div>
-          <div class="BackButton Pointer" title="${nls.common.back}"
-            data-dojo-attach-point="threatResultsPanelBackButton" tabindex="0" aria-label="${nls.common.back}"
+          <div class="BackButton Pointer" title="${nls.back}"
+            data-dojo-attach-point="threatResultsPanelBackButton" tabindex="0" aria-label="${nls.back}"
             role="button">
             <div class="ItemLeftArrow">
             </div>
@@ -166,6 +141,7 @@
             <select class="publishSelect" data-a11y-label-by="layerName" style="width: 100%;"
               data-dojo-type="jimu/dijit/formSelect" tabindex="0" data-dojo-attach-point="featureLayerList"></select>
             <div class="TACheckBoxNode" data-dojo-attach-point="checkBoxParentContainer"></div>
+            <div class="TACheckBoxNode esriCTHintCheck controlGroupHidden" data-dojo-attach-point="hintNode"></div>
           </div>
           <!-- Publish threatAnalysis Button -->
           <div class="BtnContainer">

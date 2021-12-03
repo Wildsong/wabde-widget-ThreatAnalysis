@@ -64,7 +64,8 @@
   padding-top: 5px;
 }
 
-.jimu-widget-threatAnalysis-setting .Ellipsis {
+.jimu-widget-threatAnalysis-setting .Ellipsis,
+.jimu-widget-threatAnalysis-newZoneSettings .Ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -81,7 +82,7 @@
   padding: 5px 0px 0px 10px;
 }
 
-.jimu-widget-threatAnalysis-setting .styleSelectSection {
+.jimu-widget-threatAnalysis-newZoneSettings .styleSelectSection {
   display: inline-grid;
   vertical-align: bottom;
   width: 38%;
@@ -109,7 +110,7 @@
 
 @media screen and (-ms-high-contrast: active),
 screen and (-ms-high-contrast: none) {
-  .jimu-widget-threatAnalysis-setting .styleSelectSection {
+  .jimu-widget-threatAnalysis-newZoneSettings .styleSelectSection {
     display: inline-grid;
     vertical-align: bottom;
     margin: 8px 10px 0 10px;
@@ -258,17 +259,17 @@ screen and (-ms-high-contrast: none) {
 
 /*.colorPickerEditor*/
 
-.jimu-widget-threatAnalysis-setting .sliderWrapper {
+.jimu-widget-threatAnalysis-newZoneSettings .sliderWrapper {
   width: 235px;
   display: inline-block;
   margin: 5px;
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSlider {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider {
   width: 100%;
 }
 
-.jimu-widget-threatAnalysis-setting .colorPickerEditor {
+.jimu-widget-threatAnalysis-newZoneSettings .colorPickerEditor {
   padding-top: 5px;
   padding-bottom: 8px;
   width: 100%;
@@ -276,7 +277,7 @@ screen and (-ms-high-contrast: none) {
 
 @media screen and (-ms-high-contrast: active),
 screen and (-ms-high-contrast: none) {
-  .jimu-widget-threatAnalysis-setting .colorPickerEditor {
+  .jimu-widget-threatAnalysis-newZoneSettings .colorPickerEditor {
     padding-top: 5px;
     padding-bottom: 8px;
     width: 100%;
@@ -284,7 +285,7 @@ screen and (-ms-high-contrast: none) {
   }
 }
 
-.jimu-widget-threatAnalysis-setting .colorPickerEditor .jimu-color-picker {
+.jimu-widget-threatAnalysis-newZoneSettings .colorPickerEditor .jimu-color-picker {
   display: inline-block;
   width: 25px;
   height: 25px;
@@ -292,7 +293,7 @@ screen and (-ms-high-contrast: none) {
 
 @media screen and (-ms-high-contrast: active),
 screen and (-ms-high-contrast: none) {
-  .jimu-widget-threatAnalysis-setting .colorPickerEditor .jimu-color-picker {
+  .jimu-widget-threatAnalysis-newZoneSettings .colorPickerEditor .jimu-color-picker {
     display: inline-block;
     width: 25px;
     height: 25px;
@@ -300,43 +301,43 @@ screen and (-ms-high-contrast: none) {
   }
 }
 
-.jimu-widget-threatAnalysis-setting .colorPickerEditor .dijitSpinner.dijitNumberTextBox.dijitValidationTextBox {
+.jimu-widget-threatAnalysis-newZoneSettings .colorPickerEditor .dijitSpinner.dijitNumberTextBox.dijitValidationTextBox {
   width: 66px;
   height: 30px;
 }
 
 @media screen and (-ms-high-contrast: active),
 screen and (-ms-high-contrast: none) {
-  .jimu-widget-threatAnalysis-setting .colorPickerEditor .dijitSpinner.dijitNumberTextBox.dijitValidationTextBox {
+  .jimu-widget-threatAnalysis-newZoneSettings .dijitSpinner.dijitNumberTextBox.dijitValidationTextBox {
     width: 66px;
     height: 30px;
     margin-top: 25px;
   }
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSlider .dijitSliderImageHandleH {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider .dijitSliderImageHandleH {
   top: -10px;
   width: 20px;
   height: 20px;
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSliderImageHandleH {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSliderImageHandleH {
   top: -7px;
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSliderImageHandle.dijitSliderImageHandleH {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSliderImageHandle.dijitSliderImageHandleH {
   background-image: url("../../images/sliderball.svg");
   background-position: 0 0;
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSliderThumbHover {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSliderThumbHover {
   background-image: url("../../images/sliderball.svg");
   background-position: 0 0;
 }
 
 /*left*/
-.jimu-widget-threatAnalysis-setting .dijitSlider .dijitSliderProgressBarH,
-.jimu-widget-threatAnalysis-setting .dijitSlider .dijitSliderLeftBumper {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider .dijitSliderProgressBarH,
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider .dijitSliderLeftBumper {
   border-color: #000;
   background-color: #000;
   background-image: -webkit-linear-gradient(top, #000 0px, #000 1px, rgba(255, 255, 255, 0) 2px);
@@ -344,8 +345,8 @@ screen and (-ms-high-contrast: none) {
   background-image: linear-gradient(top, #000 0px, #000 1px, rgba(255, 255, 255, 0) 2px);
 }
 
-.jimu-widget-threatAnalysis-setting .dijitSlider .dijitSliderRemainingBarH,
-.jimu-widget-threatAnalysis-setting .dijitSlider .dijitSliderRightBumper {
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider .dijitSliderRemainingBarH,
+.jimu-widget-threatAnalysis-newZoneSettings .dijitSlider .dijitSliderRightBumper {
   border-color: #d7d7d7;
   background-color: #d7d7d7;
 }
@@ -1033,7 +1034,7 @@ screen and (-ms-high-contrast: none) {
   background-color: transparent;
   width: 16px;
   height: 16px;
-  margin-top: 13px;
+  margin-top: 8px;
   vertical-align: middle;
 }
 
@@ -1059,15 +1060,17 @@ screen and (-ms-high-contrast: none) {
   height: 100%;
 }
 
-.jimu-widget-threatAnalysis-setting .esriCTWrapper {
+.jimu-widget-threatAnalysis-setting .esriCTTabWrapper {
   padding: 10px;
+  height: 100%;
 }
 
 .jimu-widget-threatAnalysis-setting .esriCTMiscTabWrapperWidth {
-  width: 600px;
+  width: 100%;
 }
 
-.jimu-widget-threatAnalysis-setting .esriCTAddThreatTypeBtn {
+.jimu-widget-threatAnalysis-setting .esriCTAddThreatTypeBtn,
+.jimu-widget-threatAnalysis-newThreatTypePopup .addZoneButton {
   display: inline-block;
   height: 20px;
   cursor: pointer;
@@ -1077,11 +1080,13 @@ screen and (-ms-high-contrast: none) {
   float: right;
 }
 
-.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTAddThreatTypeBtn {
+.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTAddThreatTypeBtn,
+.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .addZoneButton  {
   float: left;
 }
 
-.jimu-widget-threatAnalysis-setting .esriCTBtnAddIcon {
+.jimu-widget-threatAnalysis-setting .esriCTBtnAddIcon,
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTBtnAddIcon {
   height: 100%;
   width: 14px;
   background-image: url(images/add.png);
@@ -1091,7 +1096,8 @@ screen and (-ms-high-contrast: none) {
   background-position: center center;
 }
 
-.jimu-widget-threatAnalysis-setting .esriCTBtnAddLabel {
+.jimu-widget-threatAnalysis-setting .esriCTBtnAddLabel,
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTBtnAddLabel {
   height: 100%;
   line-height: 20px;
   margin-left: 7px;
@@ -1100,13 +1106,14 @@ screen and (-ms-high-contrast: none) {
   text-decoration: none;
 }
 
-.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTBtnAddLabel {
+.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTBtnAddLabel,
+.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTBtnAddLabel {
   margin-right: 7px;
   margin-left: 0px;
-  ;
 }
 
-.jimu-widget-threatAnalysis-setting .esriCTAddBtnWrapper {
+.jimu-widget-threatAnalysis-setting .esriCTAddBtnWrapper,
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTAddBtnWrapper {
   width: 100%;
   padding: 5px;
   overflow: hidden;
@@ -1118,11 +1125,13 @@ screen and (-ms-high-contrast: none) {
   padding: 5px;
   overflow: hidden;
   margin-top: 10px;
-  height: calc(100% - 30px);
-  overflow: auto;
+  height: 100%;
+  clear: both;
 }
 
-.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTWrapper {
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTWrapper,
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTWrapper,
+.jimu-widget-threatAnalysis-setting .esriCTWrapper {
   width: 100%;
   overflow: hidden;
   padding: 5px;
@@ -1132,13 +1141,9 @@ screen and (-ms-high-contrast: none) {
   padding-right: 0px;
 }
 
-.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTWrapper {
-  width: 100%;
-  overflow: hidden;
-  padding: 5px;
-}
-
-.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTLabel {
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTLabel,
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTLabel,
+.jimu-widget-threatAnalysis-setting .esriCTLabel {
   width: 40%;
   padding: 0px 10px 0px 0px;
   word-break: break-word;
@@ -1148,28 +1153,39 @@ screen and (-ms-high-contrast: none) {
   line-height: 30px;
 }
 
-.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTLabel {
+.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTLabel,
+.jimu-rtl .jimu-widget-threatAnalysis-newZoneSettings .esriCTLabel,
+.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTLabel {
   float: right;
 }
 
-.jimu-rtl .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitControlLabel {
+.jimu-rtl .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitControlLabel,
+.jimu-rtl .jimu-widget-threatAnalysis-newZoneSettings .esriCTDijitControlLabel {
   float: right;
   padding: 0px 0px 0px 5px;
 }
 
 .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTDijitControl,
-.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitControl {
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitControl,
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTDijitControl,
+.jimu-widget-threatAnalysis-setting .esriCTDijitControl{
   width: 60%;
   float: right;
 }
 
-.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTDijitControl {
+.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTDijitControl,
+.jimu-rtl .jimu-widget-threatAnalysis-newZoneSettings .esriCTDijitControl,
+.jimu-rtl .jimu-widget-threatAnalysis-setting .esriCTDijitControl {
   float: left;
 }
 
 .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTDijitWrapper,
-.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitWrapper {
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitWrapper,
+.jimu-widget-threatAnalysis-setting .esriCTDijitWrapper{
   width: 100%;
+}
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTDijitWrapper {
+  width: 95%;
 }
 
 .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTDefaultIcon {
@@ -1224,8 +1240,12 @@ screen and (-ms-high-contrast: none) {
 }
 
 .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTMainContainer {
-  height: 300px;
   margin-right: 5px;
+}
+
+.jimu-rtl .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTMainContainer {
+  margin-left: 5px;
+  margin-right: 0px;
 }
 
 .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTWrapper {
@@ -1252,7 +1272,6 @@ screen and (-ms-high-contrast: none) {
 
 .jimu-widget-threatAnalysis-setting .jimu-viewstack {
   height: calc(100% - 45px);
-  overflow: auto;
 }
 
 .jimu-widget-threatAnalysis-setting .unitMeasureLabel {
@@ -1260,6 +1279,9 @@ screen and (-ms-high-contrast: none) {
   padding: 0 5px 0 5px;
   font-weight: bold;
   font-style: italic;
+  margin: 0;
+  position: absolute;
+  bottom: 25px;
 }
 
 .jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDijitControlLabel {
@@ -1294,4 +1316,85 @@ screen and (-ms-high-contrast: none) {
 
 .jimu-widget-threatAnalysis-setting .styleSelect {
   width: 200px;
+}
+
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTCustomOptions tr {
+  text-indent: 20px;
+}
+
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTCustomOptions .dijitDisabled {
+  text-indent: 0px !important;
+}
+
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTAddZoneBtn {
+  display: inline-block;
+  height: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgb(83, 142, 200);
+  overflow: hidden;
+  float: right;
+}
+
+.jimu-rtl .jimu-widget-threatAnalysis-newThreatTypePopup .esriCTAddZoneBtn {
+  float: left;
+}
+
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTSymbologyLabel {
+  padding: 0px 10px 0px 0px;
+  word-break: break-word;
+  font-size: 14px;
+  color: #596679;
+  line-height: 30px;
+}
+
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTZonesTableMaxHeight .jimu-simple-table {
+  max-height: 187px;
+}
+
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTHintCheck {
+  float: left;
+  font-size: 13px;
+  color: rgb(160, 172, 191);
+  font-style: oblique;
+  line-height: 20px;
+  padding-left: 10px;
+  padding-right: 15px;
+  padding-top: 5px;
+}
+
+.jimu-widget-threatAnalysis-setting .esriCTThreatTableMaxHeight .jimu-simple-table {
+  max-height: calc(100% - 63px);
+}
+
+.jimu-widget-threatAnalysis-setting .esriCTThreatTypeNode {
+  height: 100%;
+}
+
+.jimu-widget-threatAnalysis-newThreatTypePopup .esriCTPopupContainer,
+.jimu-widget-threatAnalysis-newZoneSettings .esriCTPopupContainer,
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTPopupContainer {
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.jimu-widget-threatAnalysis-defaultThreatTypePopup .esriCTDefaultThreatsDropdown .dijitSelectLabel {
+  text-overflow: ellipsis;
+  text-align: justify;
+  overflow: hidden;
+  width: 220px;
+  padding: 5px 0px 0px 0px;
+}
+
+.jimu-widget-threatAnalysis-setting .esriCTDijitWidth {
+  width: calc(100% - 25px);
+}
+
+.jimu-widget-threatAnalysis-setting .esriCTPadding10{
+  padding: 10px;
+}
+
+.jimu-widget-threatAnalysis-setting .esriCTDijitWrapper .dijitSelectLabel {
+  width: 450px;
 }

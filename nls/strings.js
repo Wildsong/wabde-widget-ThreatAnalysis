@@ -1,4 +1,4 @@
-﻿define({
+define({
   root: ({
     _widgetLabel: "Threat Analysis", // Label of widget
 
@@ -16,8 +16,6 @@
     "threatDrawPointToolTip": "Click to add threat location", // Shown as tooltip help on the cursor when using the draw point tool
     "threatType": "Threat Type", // Shown as title for threat type input
     "threatPlaceholder": "Start typing to search for a threat", // Shown as prompt text in threat input field
-    "mandatoryLabel": "Mandatory Evacuation Distance", // Shown as label for mandatory evacuation distance
-    "safeLabel": "Safe Evacuation Distance", // Shown as label for safe evacuation distance,
     "zoneTypeLabel": "Zone Type", // Label for popup template to display either mandatory or safe evac labels
     "feetLabel": "Feet", // Feet label for popup template
     "metersLabel": "Meters", // Meters label for popup template
@@ -25,10 +23,8 @@
     "threatGraphicLayer": "Threat-Graphic",
 
     // Settings Panel
-    "settingsTitle": "Settings", // Shown as Title for Settings page and label on settings buttons
-    "mandatoryButtonLabel": "Configure Mandatory Evacuation Distance Settings", // Shown as tooltip for Spill Location Settings dropdown
-    "safeButtonLabel": "Configure Shelter In Place Settings", // Shown as tooltip for Initial Isolation Zone Settings dropdown
     "style": "Style", // Shown as Title for Style dropdown
+    "settingsTitle": "Settings", // Shown as Title for Settings page and label on settings buttons
     "colorPicker": "colorPicker", // read as aria lable for color picker
     "lineStyles": {
       "esriSLSDash": "Dash",
@@ -107,24 +103,30 @@
     "semiTrailerLabel": "Semi-Trailer",
     "selectDrawModeLabel": "Select Draw Mode",
     "selectFeatureLabel": "Select Feature From This Layer",
-    "fireBallDiameterLable": "Fireball Diameter",
-    "lpgSafeDistanceLable": "Safe Distance",
-    "threatTypeCatagoryLabel": "Threat Type Catagory",
-    "fireballButtonLabel": "Configure Fireball Diameter Settings",
-    "safeDistanceButtonLabel": "Configure Safe Distance Settings",
-    "chemicalThreatCatagoryLabel": "Chemical",
-    "lpgThreatCatagoryLabel": "Liquefied Petroleum Gas",
-    "chemicalThreatLabel": "Chemical Threat",
-    "lpgThreatLabel": "LPG Threat",
-    "fireBallDiameterFieldAlias": "LPG Fireball Diameter",
-    "lpgSafeDistanceFieldAlias": "LPG Safe Distance",
 
     //LPG threat types - labels from the lpgThreatTypes.json
     "smallLPGTank": "Small LPG Tank",
     "largeLPGTank": "Large LPG Tank",
     "commercialResidentialLPGTank": "Commercial/Residential LPG Tank",
     "smallLPGTruck": "Small LPG Truck",
-    "semiTankerLPG": "Semi-Tanker LPG"
+    "semiTankerLPG": "Semi-Tanker LPG",
+
+    "zoneDescriptionColLabel": "Zone description",
+    "distanceColLabel": "Distance",
+    "zoneDescColLabel": "Zone description",
+    "descriptionLabel": "Description",
+    "editThreatZonePopupLabel": "Edit threat zone symbology",
+    "symbologyColLabel": "Symbology",
+    "zoneDescriptionColLabel": "Zone description",
+    "actions": "Actions",
+    "threatTypeSelectLabel": "Select threat type:",
+    "distanceLabel": "Distance (${unitAbbr})",
+    "layerCountHint":"Hint: A web layer with ${layerCount} feature layer(s) will be published.",
+    "selectLabel": "Select",
+    "mandatoryLabel": "Mandatory Evacuation Distance", // Shown as label for mandatory evacuation distance
+    "safeLabel": "Safe Evacuation Distance", // Shown as label for safe evacuation distance,
+    "fireBallDiameterLable": "Fireball Diameter",
+    "lpgSafeDistanceLable": "Safe Distance"
   }),
   "ar": 1,
   "bs": 1,
